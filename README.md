@@ -1,6 +1,15 @@
 # micro-x-agent-loop-dotnet
 
-A minimal AI agent loop built with .NET 8 and the Anthropic Claude API. The agent runs in a REPL, takes natural-language prompts, and autonomously calls tools to get things done.
+A minimal AI agent loop built with .NET 8 and the Anthropic Claude API. The agent runs in a REPL, takes natural-language prompts, and autonomously calls tools to get things done. Responses stream in real time as Claude generates them.
+
+## Features
+
+- **Streaming responses** — text appears word-by-word as Claude generates it
+- **Parallel tool execution** — multiple tool calls in a single turn run concurrently
+- **Automatic retry** — Polly-based exponential backoff on API rate limits
+- **Configurable limits** — max tool result size and conversation history length with clear warnings
+- **Conditional tools** — Gmail tools only load when credentials are present
+- **Cross-platform** — works on Windows, macOS, and Linux
 
 ## Quick Start
 
@@ -24,6 +33,8 @@ ANTHROPIC_API_KEY=sk-ant-...
 GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=your-client-secret
 ```
+
+Google credentials are optional — if omitted, Gmail tools are simply not registered.
 
 ### 2. Run
 
@@ -49,7 +60,10 @@ App settings live in `src/MicroXAgentLoop/appsettings.json`:
 {
   "Model": "claude-sonnet-4-5-20250929",
   "MaxTokens": 8192,
-  "DocumentsDirectory": "../documents"
+  "Temperature": 1.0,
+  "MaxToolResultChars": 40000,
+  "MaxConversationMessages": 50,
+  "DocumentsDirectory": "C:\\path\\to\\your\\documents"
 }
 ```
 
@@ -57,7 +71,12 @@ App settings live in `src/MicroXAgentLoop/appsettings.json`:
 |---------|-------------|---------|
 | `Model` | Claude model ID | `claude-sonnet-4-5-20250929` |
 | `MaxTokens` | Max tokens per response | `8192` |
-| `DocumentsDirectory` | Fallback directory for `read_file` relative paths | `../documents` |
+| `Temperature` | Sampling temperature (0.0 = deterministic, 1.0 = creative) | `1.0` |
+| `MaxToolResultChars` | Max characters per tool result before truncation | `40000` |
+| `MaxConversationMessages` | Max messages in history before trimming oldest | `50` |
+| `DocumentsDirectory` | Fallback directory for `read_file` relative paths | _(none)_ |
+
+All settings are optional — sensible defaults are used when missing. See [Configuration Reference](documentation/docs/operations/appsettings.md) for full details.
 
 Secrets (API keys) stay in `.env` and are loaded by DotNetEnv.
 
@@ -65,7 +84,7 @@ Secrets (API keys) stay in `.env` and are loaded by DotNetEnv.
 
 ### bash
 
-Execute shell commands and return the output.
+Execute shell commands and return the output (cmd.exe on Windows, bash on Unix). 30-second timeout.
 
 ### read_file
 
@@ -85,7 +104,7 @@ Fetch the full job description from a LinkedIn job URL (returned by `linkedin_jo
 
 ### gmail_search
 
-Search Gmail using Gmail search syntax. Returns message ID, date, sender, subject, and snippet for each match.
+Search Gmail using Gmail search syntax. Returns message ID, date, sender, subject, and snippet for each match. Only available when Google credentials are configured.
 
 ### gmail_read
 
@@ -154,24 +173,39 @@ Search my Gmail for emails from recruiters in the last week and summarise them
 ## Architecture
 
 ```
-Program.cs          -- Entry point: loads config, builds tools, starts REPL
-Agent.cs            -- Agent loop: sends messages to Claude, dispatches tool calls
-ITool.cs            -- Tool interface (Name, Description, InputSchema, ExecuteAsync)
-ToolRegistry.cs     -- Registers all tools with their dependencies
+Program.cs           -- Entry point: loads config, builds tools, starts REPL
+Agent.cs             -- Agent loop: streaming, parallel tool dispatch, history management
+AgentConfig.cs       -- Immutable configuration record
+LlmClient.cs         -- Anthropic API streaming + Polly retry pipeline
+ITool.cs             -- Tool interface (Name, Description, InputSchema, ExecuteAsync)
+ToolRegistry.cs      -- Assembles tools with dependencies (conditional Gmail)
 Tools/
   BashTool.cs
   ReadFileTool.cs
   WriteFileTool.cs
+  HtmlUtilities.cs   -- Shared HTML-to-text conversion
   LinkedIn/
     LinkedInJobsTool.cs
     LinkedInJobDetailTool.cs
   Gmail/
-    GmailAuth.cs
+    GmailAuth.cs     -- OAuth2 flow + token caching
+    GmailParser.cs   -- MIME parsing + body extraction
     GmailSearchTool.cs
     GmailReadTool.cs
     GmailSendTool.cs
-    GmailParser.cs
 ```
+
+## Documentation
+
+Full documentation lives in [`documentation/docs/`](documentation/docs/index.md):
+
+- [**Software Architecture Document**](documentation/docs/architecture/SAD.md) — system overview, components, data flow (arc42 lite)
+- [**Architecture Decision Records**](documentation/docs/architecture/decisions/README.md) — ADRs for secrets, retry, streaming
+- [**Agent Loop Design**](documentation/docs/design/DESIGN-agent-loop.md) — core loop, parallel execution, streaming
+- [**Tool System Design**](documentation/docs/design/DESIGN-tool-system.md) — ITool interface, registry, how to add tools
+- [**Getting Started**](documentation/docs/operations/getting-started.md) — setup, prerequisites, first run
+- [**Configuration Reference**](documentation/docs/operations/appsettings.md) — all settings with types and defaults
+- [**Troubleshooting**](documentation/docs/operations/troubleshooting.md) — common issues and solutions
 
 ## License
 
