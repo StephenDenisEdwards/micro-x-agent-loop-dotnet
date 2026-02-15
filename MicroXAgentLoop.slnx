@@ -2,4 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/MicroXAgentLoop/MicroXAgentLoop.csproj" />
   </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path="README.md" />
+  </Folder>
 </Solution>
