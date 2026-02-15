@@ -1,0 +1,7 @@
+bin/
+obj/
+.env
+.gmail-tokens/
+*.user
+*.suo
+.vs/
