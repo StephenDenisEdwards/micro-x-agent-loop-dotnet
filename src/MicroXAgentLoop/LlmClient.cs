@@ -29,6 +29,9 @@ public static class LlmClient
         }).ToList();
     }
 
+    private const int MaxRetries = 5;
+    private static readonly TimeSpan InitialDelay = TimeSpan.FromSeconds(10);
+
     public static async Task<MessageResponse> ChatAsync(
         AnthropicClient client,
         string model,
@@ -48,6 +51,20 @@ public static class LlmClient
             System = [new SystemMessage(systemPrompt)],
         };
 
-        return await client.Messages.GetClaudeMessageAsync(parameters);
+        for (var attempt = 0; ; attempt++)
+        {
+            try
+            {
+                return await client.Messages.GetClaudeMessageAsync(parameters);
+            }
+            catch (HttpRequestException ex) when (
+                attempt < MaxRetries &&
+                ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+            {
+                var delay = InitialDelay * Math.Pow(2, attempt);
+                Console.Error.WriteLine($"Rate limited. Retrying in {delay.TotalSeconds:F0}s (attempt {attempt + 1}/{MaxRetries})...");
+                await Task.Delay(delay);
+            }
+        }
     }
 }
