@@ -18,6 +18,9 @@ if (string.IsNullOrEmpty(apiKey))
 
 var model = configuration["Model"] ?? "claude-sonnet-4-5-20250929";
 var maxTokens = int.TryParse(configuration["MaxTokens"], out var mt) ? mt : 8192;
+var temperature = decimal.TryParse(configuration["Temperature"], out var temp) ? temp : 1.0m;
+var maxToolResultChars = int.TryParse(configuration["MaxToolResultChars"], out var trc) ? trc : 40_000;
+var maxConversationMessages = int.TryParse(configuration["MaxConversationMessages"], out var mcm) ? mcm : 50;
 var documentsDirectory = configuration["DocumentsDirectory"];
 var googleClientId = Environment.GetEnvironmentVariable("GOOGLE_CLIENT_ID");
 var googleClientSecret = Environment.GetEnvironmentVariable("GOOGLE_CLIENT_SECRET");
@@ -27,9 +30,12 @@ var tools = ToolRegistry.GetAll(documentsDirectory, googleClientId, googleClient
 var agent = new Agent(new AgentConfig(
     Model: model,
     MaxTokens: maxTokens,
+    Temperature: temperature,
     ApiKey: apiKey,
     Tools: tools,
-    SystemPrompt: SystemPrompt.Text));
+    SystemPrompt: SystemPrompt.Text,
+    MaxToolResultChars: maxToolResultChars,
+    MaxConversationMessages: maxConversationMessages));
 
 Console.WriteLine("micro-x-agent-loop (type 'exit' to quit)");
 Console.WriteLine($"Tools: {string.Join(", ", tools.Select(t => t.Name))}");
@@ -53,8 +59,9 @@ while (true)
 
     try
     {
-        var response = await agent.RunAsync(trimmed);
-        Console.WriteLine($"\nassistant> {response}\n");
+        Console.Write("\nassistant> ");
+        await agent.RunAsync(trimmed);
+        Console.WriteLine("\n");
     }
     catch (Exception ex)
     {

@@ -1,5 +1,4 @@
 using System.Text.Json.Nodes;
-using System.Text.RegularExpressions;
 using System.Web;
 using HtmlAgilityPack;
 
@@ -67,7 +66,7 @@ public class LinkedInJobDetailTool : ITool
             var description = string.Empty;
             if (descNode is not null)
             {
-                description = HtmlToPlainText(descNode);
+                description = HtmlUtilities.HtmlToText(descNode.InnerHtml);
             }
 
             if (string.IsNullOrWhiteSpace(description))
@@ -92,32 +91,4 @@ public class LinkedInJobDetailTool : ITool
         }
     }
 
-    private static string HtmlToPlainText(HtmlNode node)
-    {
-        var html = node.InnerHtml;
-        var doc = new HtmlDocument();
-        doc.LoadHtml(html);
-
-        // Replace <br> with newlines
-        var brNodes = doc.DocumentNode.SelectNodes("//br");
-        if (brNodes is not null)
-            foreach (var br in brNodes)
-                br.ParentNode.ReplaceChild(HtmlNode.CreateNode("\n"), br);
-
-        // Add newlines around block elements
-        var blockNodes = doc.DocumentNode.SelectNodes("//p|//div|//h1|//h2|//h3|//h4|//h5|//h6");
-        if (blockNodes is not null)
-            foreach (var el in blockNodes)
-                el.InnerHtml = "\n" + el.InnerHtml + "\n";
-
-        // Add bullet for list items
-        var liNodes = doc.DocumentNode.SelectNodes("//li");
-        if (liNodes is not null)
-            foreach (var li in liNodes)
-                li.InnerHtml = "- " + li.InnerHtml + "\n";
-
-        var text = HttpUtility.HtmlDecode(doc.DocumentNode.InnerText);
-        text = Regex.Replace(text, @"\n{3,}", "\n\n");
-        return text.Trim();
-    }
 }

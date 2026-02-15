@@ -12,14 +12,14 @@ namespace MicroXAgentLoop;
 
 public static class LlmClient
 {
-    private static readonly ResiliencePipeline<MessageResponse> RetryPipeline =
-        new ResiliencePipelineBuilder<MessageResponse>()
-            .AddRetry(new RetryStrategyOptions<MessageResponse>
+    private static readonly ResiliencePipeline RetryPipeline =
+        new ResiliencePipelineBuilder()
+            .AddRetry(new RetryStrategyOptions
             {
                 MaxRetryAttempts = 5,
                 BackoffType = DelayBackoffType.Exponential,
                 Delay = TimeSpan.FromSeconds(10),
-                ShouldHandle = new PredicateBuilder<MessageResponse>()
+                ShouldHandle = new PredicateBuilder()
                     .Handle<HttpRequestException>(ex =>
                         ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests),
                 OnRetry = args =>
@@ -51,10 +51,15 @@ public static class LlmClient
         }).ToList();
     }
 
-    public static async Task<MessageResponse> ChatAsync(
+    /// <summary>
+    /// Stream a chat response, printing text deltas to stdout in real time.
+    /// Returns the assembled message and any tool use blocks found.
+    /// </summary>
+    public static async Task<(Message Message, List<ToolUseContent> ToolUseBlocks)> StreamChatAsync(
         AnthropicClient client,
         string model,
         int maxTokens,
+        decimal temperature,
         string systemPrompt,
         List<Message> messages,
         List<CommonTool> tools)
@@ -64,13 +69,31 @@ public static class LlmClient
             Messages = messages,
             MaxTokens = maxTokens,
             Model = model,
-            Stream = false,
-            Temperature = 1.0m,
+            Stream = true,
+            Temperature = temperature,
             Tools = tools,
             System = [new SystemMessage(systemPrompt)],
         };
 
-        return await RetryPipeline.ExecuteAsync(
-            async ct => await client.Messages.GetClaudeMessageAsync(parameters, ct));
+        var outputs = new List<MessageResponse>();
+
+        await RetryPipeline.ExecuteAsync(async ct =>
+        {
+            outputs.Clear();
+            await foreach (var res in client.Messages.StreamClaudeMessageAsync(parameters, ct))
+            {
+                if (res.Delta?.Text is not null)
+                {
+                    Console.Write(res.Delta.Text);
+                }
+                outputs.Add(res);
+            }
+        });
+
+        // Build the full message from streamed outputs
+        var message = new Message(outputs);
+        var toolUseBlocks = message.Content?.OfType<ToolUseContent>().ToList() ?? [];
+
+        return (message, toolUseBlocks);
     }
 }

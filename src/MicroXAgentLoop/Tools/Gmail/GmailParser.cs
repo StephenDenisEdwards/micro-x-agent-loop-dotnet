@@ -1,8 +1,5 @@
 using System.Text;
-using System.Text.RegularExpressions;
-using System.Web;
 using Google.Apis.Gmail.v1.Data;
-using HtmlAgilityPack;
 
 namespace MicroXAgentLoop.Tools.Gmail;
 
@@ -28,51 +25,6 @@ public static class GmailParser
         return Encoding.UTF8.GetString(Convert.FromBase64String(base64));
     }
 
-    public static string HtmlToText(string html)
-    {
-        var doc = new HtmlDocument();
-        doc.LoadHtml(html);
-
-        // Remove non-visible elements
-        var removeNodes = doc.DocumentNode.SelectNodes("//script|//style|//head");
-        if (removeNodes is not null)
-            foreach (var node in removeNodes)
-                node.Remove();
-
-        // Replace <br> with newlines
-        var brNodes = doc.DocumentNode.SelectNodes("//br");
-        if (brNodes is not null)
-            foreach (var br in brNodes)
-                br.ParentNode.ReplaceChild(HtmlNode.CreateNode("\n"), br);
-
-        // Add newlines around block elements
-        var blockNodes = doc.DocumentNode.SelectNodes("//p|//div|//tr|//h1|//h2|//h3|//h4|//h5|//h6|//blockquote");
-        if (blockNodes is not null)
-            foreach (var el in blockNodes)
-                el.InnerHtml = "\n" + el.InnerHtml + "\n";
-
-        // Bullet list items
-        var liNodes = doc.DocumentNode.SelectNodes("//li");
-        if (liNodes is not null)
-            foreach (var li in liNodes)
-                li.InnerHtml = "\n- " + li.InnerHtml;
-
-        // Table cells
-        var tdNodes = doc.DocumentNode.SelectNodes("//td|//th");
-        if (tdNodes is not null)
-            foreach (var td in tdNodes)
-                td.InnerHtml += "\t";
-
-        var text = HttpUtility.HtmlDecode(
-            doc.DocumentNode.SelectSingleNode("//body")?.InnerText
-            ?? doc.DocumentNode.InnerText);
-
-        text = Regex.Replace(text, @"\t+", "  ");
-        text = Regex.Replace(text, @" {3,}", "  ");
-        text = Regex.Replace(text, @"\n{3,}", "\n\n");
-        return text.Trim();
-    }
-
     /// <summary>
     /// Recursively extract the best text from a message payload.
     /// For multipart/alternative, prefer HTML (richest representation).
@@ -86,7 +38,7 @@ public static class GmailParser
             if (payload.MimeType == "text/plain")
                 return DecodeBody(payload.Body.Data);
             if (payload.MimeType == "text/html")
-                return HtmlToText(DecodeBody(payload.Body.Data));
+                return HtmlUtilities.HtmlToText(DecodeBody(payload.Body.Data));
         }
 
         if (payload.Parts is null || payload.Parts.Count == 0)
@@ -99,7 +51,7 @@ public static class GmailParser
             foreach (var part in payload.Parts.Reverse())
             {
                 if (part.MimeType == "text/html" && !string.IsNullOrEmpty(part.Body?.Data))
-                    return HtmlToText(DecodeBody(part.Body.Data));
+                    return HtmlUtilities.HtmlToText(DecodeBody(part.Body.Data));
             }
             // Recurse into nested multipart children
             foreach (var part in payload.Parts.Reverse())
