@@ -2,7 +2,7 @@ bin/
 obj/
 .env
 .gmail-tokens/
+.claude/
 *.user
 *.suo
 .vs/
-/src/documents
