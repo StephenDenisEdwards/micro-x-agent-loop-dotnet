@@ -5,4 +5,25 @@
   <Folder Name="/Solution Items/">
     <File Path="README.md" />
   </Folder>
+  <Folder Name="/docs/">
+    <File Path="documentation/docs/index.md" />
+  </Folder>
+  <Folder Name="/docs/architecture/">
+    <File Path="documentation/docs/architecture/SAD.md" />
+  </Folder>
+  <Folder Name="/docs/architecture/decisions/">
+    <File Path="documentation/docs/architecture/decisions/README.md" />
+    <File Path="documentation/docs/architecture/decisions/ADR-001-dotnetenv-for-secrets.md" />
+    <File Path="documentation/docs/architecture/decisions/ADR-002-polly-for-retry.md" />
+    <File Path="documentation/docs/architecture/decisions/ADR-003-streaming-responses.md" />
+  </Folder>
+  <Folder Name="/docs/design/">
+    <File Path="documentation/docs/design/DESIGN-agent-loop.md" />
+    <File Path="documentation/docs/design/DESIGN-tool-system.md" />
+  </Folder>
+  <Folder Name="/docs/operations/">
+    <File Path="documentation/docs/operations/getting-started.md" />
+    <File Path="documentation/docs/operations/appsettings.md" />
+    <File Path="documentation/docs/operations/troubleshooting.md" />
+  </Folder>
 </Solution>
