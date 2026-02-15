@@ -4,12 +4,34 @@ using System.Text.Json.Serialization;
 using Anthropic.SDK;
 using Anthropic.SDK.Common;
 using Anthropic.SDK.Messaging;
+using Polly;
+using Polly.Retry;
 using CommonTool = Anthropic.SDK.Common.Tool;
 
 namespace MicroXAgentLoop;
 
 public static class LlmClient
 {
+    private static readonly ResiliencePipeline<MessageResponse> RetryPipeline =
+        new ResiliencePipelineBuilder<MessageResponse>()
+            .AddRetry(new RetryStrategyOptions<MessageResponse>
+            {
+                MaxRetryAttempts = 5,
+                BackoffType = DelayBackoffType.Exponential,
+                Delay = TimeSpan.FromSeconds(10),
+                ShouldHandle = new PredicateBuilder<MessageResponse>()
+                    .Handle<HttpRequestException>(ex =>
+                        ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests),
+                OnRetry = args =>
+                {
+                    Console.Error.WriteLine(
+                        $"Rate limited. Retrying in {args.RetryDelay.TotalSeconds:F0}s " +
+                        $"(attempt {args.AttemptNumber + 1}/5)...");
+                    return ValueTask.CompletedTask;
+                },
+            })
+            .Build();
+
     public static AnthropicClient CreateClient(string apiKey)
     {
         return new AnthropicClient(new APIAuthentication(apiKey));
@@ -28,9 +50,6 @@ public static class LlmClient
             return (CommonTool)new Function(t.Name, t.Description, JsonNode.Parse(schemaJson));
         }).ToList();
     }
-
-    private const int MaxRetries = 5;
-    private static readonly TimeSpan InitialDelay = TimeSpan.FromSeconds(10);
 
     public static async Task<MessageResponse> ChatAsync(
         AnthropicClient client,
@@ -51,20 +70,7 @@ public static class LlmClient
             System = [new SystemMessage(systemPrompt)],
         };
 
-        for (var attempt = 0; ; attempt++)
-        {
-            try
-            {
-                return await client.Messages.GetClaudeMessageAsync(parameters);
-            }
-            catch (HttpRequestException ex) when (
-                attempt < MaxRetries &&
-                ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
-            {
-                var delay = InitialDelay * Math.Pow(2, attempt);
-                Console.Error.WriteLine($"Rate limited. Retrying in {delay.TotalSeconds:F0}s (attempt {attempt + 1}/{MaxRetries})...");
-                await Task.Delay(delay);
-            }
-        }
+        return await RetryPipeline.ExecuteAsync(
+            async ct => await client.Messages.GetClaudeMessageAsync(parameters, ct));
     }
 }
