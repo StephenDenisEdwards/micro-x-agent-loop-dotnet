@@ -3,6 +3,8 @@ obj/
 .env
 .gmail-tokens/
 .claude/
+src/documents/
+src/MicroXAgentLoop/JobServe_Analysis*.md
 *.user
 *.suo
 .vs/
