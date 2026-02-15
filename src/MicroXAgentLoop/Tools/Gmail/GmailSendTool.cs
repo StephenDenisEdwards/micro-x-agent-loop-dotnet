@@ -6,6 +6,15 @@ namespace MicroXAgentLoop.Tools.Gmail;
 
 public class GmailSendTool : ITool
 {
+    private readonly string _googleClientId;
+    private readonly string _googleClientSecret;
+
+    public GmailSendTool(string googleClientId, string googleClientSecret)
+    {
+        _googleClientId = googleClientId;
+        _googleClientSecret = googleClientSecret;
+    }
+
     public string Name => "gmail_send";
     public string Description => "Send an email from your Gmail account.";
 
@@ -34,7 +43,7 @@ public class GmailSendTool : ITool
     {
         try
         {
-            var gmail = await GmailAuth.GetGmailServiceAsync();
+            var gmail = await GmailAuth.GetGmailServiceAsync(_googleClientId, _googleClientSecret);
             var to = input["to"]!.GetValue<string>();
             var subject = input["subject"]!.GetValue<string>();
             var body = input["body"]!.GetValue<string>();

@@ -4,6 +4,15 @@ namespace MicroXAgentLoop.Tools.Gmail;
 
 public class GmailReadTool : ITool
 {
+    private readonly string _googleClientId;
+    private readonly string _googleClientSecret;
+
+    public GmailReadTool(string googleClientId, string googleClientSecret)
+    {
+        _googleClientId = googleClientId;
+        _googleClientSecret = googleClientSecret;
+    }
+
     public string Name => "gmail_read";
 
     public string Description =>
@@ -26,7 +35,7 @@ public class GmailReadTool : ITool
     {
         try
         {
-            var gmail = await GmailAuth.GetGmailServiceAsync();
+            var gmail = await GmailAuth.GetGmailServiceAsync(_googleClientId, _googleClientSecret);
             var messageId = input["messageId"]!.GetValue<string>();
 
             var request = gmail.Users.Messages.Get("me", messageId);

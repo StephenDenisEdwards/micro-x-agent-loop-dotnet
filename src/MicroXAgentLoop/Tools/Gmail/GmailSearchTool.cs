@@ -4,6 +4,15 @@ namespace MicroXAgentLoop.Tools.Gmail;
 
 public class GmailSearchTool : ITool
 {
+    private readonly string _googleClientId;
+    private readonly string _googleClientSecret;
+
+    public GmailSearchTool(string googleClientId, string googleClientSecret)
+    {
+        _googleClientId = googleClientId;
+        _googleClientSecret = googleClientSecret;
+    }
+
     public string Name => "gmail_search";
 
     public string Description =>
@@ -30,7 +39,7 @@ public class GmailSearchTool : ITool
     {
         try
         {
-            var gmail = await GmailAuth.GetGmailServiceAsync();
+            var gmail = await GmailAuth.GetGmailServiceAsync(_googleClientId, _googleClientSecret);
             var query = input["query"]!.GetValue<string>();
             var maxResults = input["maxResults"]?.GetValue<int>() ?? 10;
 

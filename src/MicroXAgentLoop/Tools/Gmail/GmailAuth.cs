@@ -15,13 +15,10 @@ public static class GmailAuth
 
     private static GmailService? _service;
 
-    public static async Task<GmailService> GetGmailServiceAsync()
+    public static async Task<GmailService> GetGmailServiceAsync(string clientId, string clientSecret)
     {
         if (_service is not null)
             return _service;
-
-        var clientId = Environment.GetEnvironmentVariable("GOOGLE_CLIENT_ID");
-        var clientSecret = Environment.GetEnvironmentVariable("GOOGLE_CLIENT_SECRET");
 
         if (string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(clientSecret))
             throw new InvalidOperationException(
