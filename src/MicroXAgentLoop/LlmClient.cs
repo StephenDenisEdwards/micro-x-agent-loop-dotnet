@@ -12,6 +12,53 @@ namespace MicroXAgentLoop;
 
 public static class LlmClient
 {
+    private const string SpinnerFrames = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏";
+    private const string SpinnerLabel = " Thinking...";
+
+    private sealed class Spinner
+    {
+        private readonly string _prefix;
+        private readonly Thread _thread;
+        private volatile bool _stopped;
+        private readonly int _frameWidth = 1 + SpinnerLabel.Length;
+
+        public Spinner(string prefix = "")
+        {
+            _prefix = prefix;
+            _thread = new Thread(Run) { IsBackground = true };
+        }
+
+        public void Start() => _thread.Start();
+
+        public void Stop()
+        {
+            if (_stopped) return;
+            _stopped = true;
+            _thread.Join();
+            var clear = _prefix + new string(' ', _frameWidth);
+            Console.Write("\r" + clear + "\r" + _prefix);
+        }
+
+        private void Run()
+        {
+            var i = 0;
+            try
+            {
+                while (!_stopped)
+                {
+                    var frame = SpinnerFrames[i % SpinnerFrames.Length] + SpinnerLabel;
+                    Console.Write("\r" + _prefix + frame);
+                    Thread.Sleep(80);
+                    i++;
+                }
+            }
+            catch (Exception)
+            {
+                // Terminal doesn't support these characters; fail silently
+            }
+        }
+    }
+
     private static readonly ResiliencePipeline RetryPipeline =
         new ResiliencePipelineBuilder()
             .AddRetry(new RetryStrategyOptions
@@ -53,9 +100,9 @@ public static class LlmClient
 
     /// <summary>
     /// Stream a chat response, printing text deltas to stdout in real time.
-    /// Returns the assembled message and any tool use blocks found.
+    /// Returns the assembled message, any tool use blocks found, and the stop reason.
     /// </summary>
-    public static async Task<(Message Message, List<ToolUseContent> ToolUseBlocks)> StreamChatAsync(
+    public static async Task<(Message Message, List<ToolUseContent> ToolUseBlocks, string StopReason)> StreamChatAsync(
         AnthropicClient client,
         string model,
         int maxTokens,
@@ -76,24 +123,52 @@ public static class LlmClient
         };
 
         var outputs = new List<MessageResponse>();
+        var spinner = new Spinner(prefix: "assistant> ");
+        spinner.Start();
+        var firstOutput = false;
 
-        await RetryPipeline.ExecuteAsync(async ct =>
+        try
         {
-            outputs.Clear();
-            await foreach (var res in client.Messages.StreamClaudeMessageAsync(parameters, ct))
+            await RetryPipeline.ExecuteAsync(async ct =>
             {
-                if (res.Delta?.Text is not null)
+                outputs.Clear();
+                await foreach (var res in client.Messages.StreamClaudeMessageAsync(parameters, ct))
                 {
-                    Console.Write(res.Delta.Text);
+                    if (res.Delta?.Text is not null)
+                    {
+                        if (!firstOutput)
+                        {
+                            spinner.Stop();
+                            firstOutput = true;
+                        }
+                        Console.Write(res.Delta.Text);
+                    }
+                    outputs.Add(res);
                 }
-                outputs.Add(res);
-            }
-        });
+            });
+
+            if (!firstOutput)
+                spinner.Stop();
+        }
+        catch
+        {
+            spinner.Stop();
+            throw;
+        }
 
         // Build the full message from streamed outputs
         var message = new Message(outputs);
         var toolUseBlocks = message.Content?.OfType<ToolUseContent>().ToList() ?? [];
 
-        return (message, toolUseBlocks);
+        // Extract token usage and stop reason from streamed outputs
+        var inputTokens = outputs.FirstOrDefault()?.StreamStartMessage?.Usage?.InputTokens ?? 0;
+        var outputTokens = outputs.LastOrDefault()?.Usage?.OutputTokens ?? 0;
+        Console.Error.WriteLine($"  [{inputTokens} in / {outputTokens} out tokens]");
+
+        var stopReason = outputs
+            .Select(o => o.StopReason)
+            .LastOrDefault(sr => !string.IsNullOrEmpty(sr)) ?? "";
+
+        return (message, toolUseBlocks, stopReason);
     }
 }

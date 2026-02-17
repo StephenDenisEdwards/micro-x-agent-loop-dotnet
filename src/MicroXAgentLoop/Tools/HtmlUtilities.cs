@@ -21,6 +21,17 @@ public static class HtmlUtilities
             foreach (var node in removeNodes)
                 node.Remove();
 
+        // Preserve links as "text (url)" before stripping tags
+        var linkNodes = doc.DocumentNode.SelectNodes("//a[@href]");
+        if (linkNodes is not null)
+            foreach (var a in linkNodes)
+            {
+                var href = a.GetAttributeValue("href", "");
+                var linkText = a.InnerText.Trim();
+                var replacement = string.IsNullOrEmpty(linkText) ? href : $"{linkText} ({href})";
+                a.ParentNode.ReplaceChild(HtmlNode.CreateNode(HttpUtility.HtmlEncode(replacement)), a);
+            }
+
         // Replace <br> with newlines
         var brNodes = doc.DocumentNode.SelectNodes("//br");
         if (brNodes is not null)

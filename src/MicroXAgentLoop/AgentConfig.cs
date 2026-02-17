@@ -8,4 +8,5 @@ public record AgentConfig(
     IReadOnlyList<ITool> Tools,
     string SystemPrompt,
     int MaxToolResultChars = 40_000,
-    int MaxConversationMessages = 50);
+    int MaxConversationMessages = 50,
+    ICompactionStrategy? CompactionStrategy = null);

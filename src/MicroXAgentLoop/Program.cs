@@ -22,10 +22,23 @@ var temperature = decimal.TryParse(configuration["Temperature"], out var temp) ?
 var maxToolResultChars = int.TryParse(configuration["MaxToolResultChars"], out var trc) ? trc : 40_000;
 var maxConversationMessages = int.TryParse(configuration["MaxConversationMessages"], out var mcm) ? mcm : 50;
 var documentsDirectory = configuration["DocumentsDirectory"];
+var compactionStrategyName = configuration["CompactionStrategy"] ?? "none";
+var compactionThresholdTokens = int.TryParse(configuration["CompactionThresholdTokens"], out var ctt) ? ctt : 80_000;
+var protectedTailMessages = int.TryParse(configuration["ProtectedTailMessages"], out var ptm) ? ptm : 6;
 var googleClientId = Environment.GetEnvironmentVariable("GOOGLE_CLIENT_ID");
 var googleClientSecret = Environment.GetEnvironmentVariable("GOOGLE_CLIENT_SECRET");
 
 var tools = ToolRegistry.GetAll(documentsDirectory, googleClientId, googleClientSecret);
+
+ICompactionStrategy? compactionStrategy = compactionStrategyName.ToLowerInvariant() switch
+{
+    "summarize" => new SummarizeCompactionStrategy(
+        LlmClient.CreateClient(apiKey),
+        model,
+        compactionThresholdTokens,
+        protectedTailMessages),
+    _ => null,
+};
 
 var agent = new Agent(new AgentConfig(
     Model: model,
@@ -33,11 +46,16 @@ var agent = new Agent(new AgentConfig(
     Temperature: temperature,
     ApiKey: apiKey,
     Tools: tools,
-    SystemPrompt: SystemPrompt.Text,
+    SystemPrompt: SystemPrompt.GetText(),
     MaxToolResultChars: maxToolResultChars,
-    MaxConversationMessages: maxConversationMessages));
+    MaxConversationMessages: maxConversationMessages,
+    CompactionStrategy: compactionStrategy));
 
 Console.WriteLine("micro-x-agent-loop (type 'exit' to quit)");
+if (!string.IsNullOrEmpty(documentsDirectory))
+    Console.WriteLine($"Documents: {documentsDirectory}");
+if (compactionStrategyName != "none")
+    Console.WriteLine($"Compaction: {compactionStrategyName} (threshold: {compactionThresholdTokens:N0} tokens)");
 Console.WriteLine($"Tools: {string.Join(", ", tools.Select(t => t.Name))}");
 Console.WriteLine();
 
@@ -59,7 +77,7 @@ while (true)
 
     try
     {
-        Console.Write("\nassistant> ");
+        Console.WriteLine();
         await agent.RunAsync(trimmed);
         Console.WriteLine("\n");
     }

@@ -17,6 +17,7 @@ public class Agent
     private readonly List<CommonTool> _anthropicTools;
     private readonly int _maxToolResultChars;
     private readonly int _maxConversationMessages;
+    private readonly ICompactionStrategy _compactionStrategy;
 
     public Agent(AgentConfig config)
     {
@@ -29,29 +30,66 @@ public class Agent
         _anthropicTools = LlmClient.ToAnthropicTools(config.Tools);
         _maxToolResultChars = config.MaxToolResultChars;
         _maxConversationMessages = config.MaxConversationMessages;
+        _compactionStrategy = config.CompactionStrategy ?? new NoneCompactionStrategy();
     }
+
+    private const int MaxTokensRetries = 3;
 
     public async Task RunAsync(string userMessage)
     {
         _messages.Add(new Message(RoleType.User, userMessage));
-        TrimConversationHistory();
+        await MaybeCompactAsync();
+
+        var maxTokensAttempts = 0;
 
         while (true)
         {
-            var (message, toolUseBlocks) = await LlmClient.StreamChatAsync(
+            var (message, toolUseBlocks, stopReason) = await LlmClient.StreamChatAsync(
                 _client, _model, _maxTokens, _temperature, _systemPrompt, _messages, _anthropicTools);
 
             _messages.Add(message);
+
+            if (stopReason == "max_tokens" && toolUseBlocks.Count == 0)
+            {
+                maxTokensAttempts++;
+                if (maxTokensAttempts >= MaxTokensRetries)
+                {
+                    Console.WriteLine(
+                        $"\nassistant> [Stopped: response exceeded max_tokens " +
+                        $"({_maxTokens}) {MaxTokensRetries} times in a row. " +
+                        $"Try increasing MaxTokens in appsettings.json or simplifying the request.]");
+                    return;
+                }
+                _messages.Add(new Message(RoleType.User,
+                    "Your response was cut off because it exceeded the token limit. " +
+                    "Please continue, but be more concise. If you were writing a file, " +
+                    "break it into smaller sections or shorten the content."));
+                Console.WriteLine();
+                continue;
+            }
+
+            maxTokensAttempts = 0;
 
             if (toolUseBlocks.Count == 0)
                 return;
 
             var toolResults = await ExecuteToolsAsync(toolUseBlocks);
             _messages.Add(new Message { Role = RoleType.User, Content = toolResults });
-            TrimConversationHistory();
+            await MaybeCompactAsync();
 
-            Console.Write("\nassistant> ");
+            Console.WriteLine();
         }
+    }
+
+    private async Task MaybeCompactAsync()
+    {
+        var compacted = await _compactionStrategy.MaybeCompactAsync(_messages);
+        if (!ReferenceEquals(compacted, _messages))
+        {
+            _messages.Clear();
+            _messages.AddRange(compacted);
+        }
+        TrimConversationHistory();
     }
 
     private async Task<List<ContentBase>> ExecuteToolsAsync(List<ToolUseContent> toolUseBlocks)
