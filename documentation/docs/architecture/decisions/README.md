@@ -29,3 +29,4 @@ What becomes easier or more difficult to do because of this change?
 | [ADR-003](ADR-003-streaming-responses.md) | Streaming responses via SSE | Accepted |
 | [ADR-004](ADR-004-mcp-integration.md) | Model Context Protocol (MCP) integration | Accepted |
 | [ADR-005](ADR-005-serilog-for-logging.md) | Serilog for structured logging | Accepted |
+| [ADR-006](ADR-006-separate-repos-for-third-party-mcp-servers.md) | Separate repos for third-party MCP servers | Accepted |

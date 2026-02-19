@@ -351,11 +351,12 @@ See [Architecture Decision Records](decisions/README.md) for the full index.
 | [ADR-001](decisions/ADR-001-dotnetenv-for-secrets.md) | DotNetEnv for secrets management | Accepted |
 | [ADR-002](decisions/ADR-002-polly-for-retry.md) | Polly for API retry resilience | Accepted |
 | [ADR-003](decisions/ADR-003-streaming-responses.md) | Streaming responses via SSE | Accepted |
+| [ADR-004](decisions/ADR-004-mcp-integration.md) | Model Context Protocol (MCP) integration | Accepted |
+| [ADR-005](decisions/ADR-005-serilog-for-logging.md) | Serilog for structured logging | Accepted |
+| [ADR-006](decisions/ADR-006-separate-repos-for-third-party-mcp-servers.md) | Separate repos for third-party MCP servers | Accepted |
 
 Key architectural decisions not yet captured in ADRs:
 
-- **MCP for extensibility**: Rather than building every integration as a built-in tool, the agent supports MCP servers for dynamic tool discovery. This allows external tools to be developed and deployed independently.
-- **Serilog for structured logging**: Chosen for its rich sink ecosystem and structured logging support. Console output goes to stderr to avoid mixing with agent responses on stdout.
 - **ISearchProvider abstraction**: Web search is accessed through an interface, making it straightforward to swap Brave for another search provider without changing the tool layer.
 - **ICompactionStrategy abstraction**: Compaction is pluggable. The `SummarizeCompactionStrategy` uses the same LLM to summarize older messages, while `NoneCompactionStrategy` is a no-op fallback.
 
