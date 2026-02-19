@@ -86,6 +86,7 @@ graph TD
     ADR --> ADR005[ADR-005: Serilog for Logging]
     ADR --> ADR006[ADR-006: Separate MCP Repos]
     ADR --> ADR007[ADR-007: Google Contacts Tools]
+    ADR --> ADR008[ADR-008: Architecture Refactoring]
 
     SAD --> DESIGN1
     SAD --> DESIGN2

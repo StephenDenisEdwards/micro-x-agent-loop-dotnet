@@ -39,15 +39,15 @@ public static IReadOnlyList<ITool> GetAll(
 | Parameter | Source | Controls |
 |-----------|--------|----------|
 | `workingDirectory` | `config.json` | Base path for `bash`, `read_file`, `write_file`, `append_file` |
-| `googleClientId` | `.env` `GOOGLE_CLIENT_ID` | Gmail and Calendar tools |
-| `googleClientSecret` | `.env` `GOOGLE_CLIENT_SECRET` | Gmail and Calendar tools |
+| `googleClientId` | `.env` `GOOGLE_CLIENT_ID` | Gmail, Calendar, and Contacts tools |
+| `googleClientSecret` | `.env` `GOOGLE_CLIENT_SECRET` | Gmail, Calendar, and Contacts tools |
 | `anthropicAdminApiKey` | `.env` `ANTHROPIC_ADMIN_API_KEY` | `anthropic_usage` tool |
 | `braveApiKey` | `.env` `BRAVE_API_KEY` | `web_search` tool |
 
 **Registration groups:**
 
 1. **Always registered** -- `bash`, `read_file`, `write_file`, `append_file`, `linkedin_jobs`, `linkedin_job_detail`, `web_fetch`
-2. **Conditional on Google credentials** -- `gmail_search`, `gmail_read`, `gmail_send`, `calendar_list_events`, `calendar_create_event`, `calendar_get_event`
+2. **Conditional on Google credentials** -- `gmail_search`, `gmail_read`, `gmail_send`, `calendar_list_events`, `calendar_create_event`, `calendar_get_event`, `contacts_search`, `contacts_list`, `contacts_get`, `contacts_create`, `contacts_update`, `contacts_delete`
 3. **Conditional on Anthropic Admin API key** -- `anthropic_usage`
 4. **Conditional on Brave API key** -- `web_search`
 5. **MCP tools** -- discovered dynamically via `McpManager.ConnectAllAsync()` and appended to the tool list at startup
@@ -136,6 +136,19 @@ Gmail tools require OAuth2 authentication. On first use, a browser window opens 
 
 Calendar tools share the same OAuth2 flow and credential requirements as Gmail tools. Tokens are cached in `.calendar-tokens/`.
 
+### Google Contacts (conditional on Google credentials)
+
+| Tool | Class | Description |
+|------|-------|-------------|
+| `contacts_search` | `ContactsSearchTool` | Search contacts by name, email, or phone number. |
+| `contacts_list` | `ContactsListTool` | List contacts with pagination and sort order. |
+| `contacts_get` | `ContactsGetTool` | Get full contact details by resource name, including etag for updates. |
+| `contacts_create` | `ContactsCreateTool` | Create a new contact with name, email, phone, organization, and job title. |
+| `contacts_update` | `ContactsUpdateTool` | Update an existing contact. Requires resource name and etag for concurrency control. |
+| `contacts_delete` | `ContactsDeleteTool` | Delete a contact by resource name. |
+
+Contacts tools use the Google People API v1 (`Google.Apis.PeopleService.v1`). OAuth2 tokens are cached in `.contacts-tokens/`. The People API must be enabled in the same Google Cloud project used for Gmail and Calendar.
+
 ### Anthropic Tools (conditional on Anthropic Admin API key)
 
 | Tool | Class | Description |
@@ -156,6 +169,79 @@ Calendar tools share the same OAuth2 flow and credential requirements as Gmail t
 
 - **Required parameters:** `action`, `starting_at`
 - **Optional parameters:** `ending_at`, `bucket_width`, `group_by` (array), `limit`
+
+## Google Tool Infrastructure
+
+All Google API tools share a common authentication and base class infrastructure (see ADR-008).
+
+### GoogleAuthBase\<TService\>
+
+Thread-safe generic base class for Google API OAuth2 authentication:
+
+```csharp
+public abstract class GoogleAuthBase<TService> where TService : IClientService
+{
+    protected abstract string[] Scopes { get; }
+    protected abstract string TokenDirectory { get; }
+    protected abstract TService CreateService(IConfigurableHttpClientInitializer credential);
+
+    public async Task<TService> GetServiceAsync(string clientId, string clientSecret);
+}
+```
+
+Uses `SemaphoreSlim` with double-checked locking for thread-safe lazy initialization. On first call, opens a browser for OAuth consent and caches the credential in `TokenDirectory`. Subsequent calls return the cached service instance.
+
+Three concrete implementations:
+
+| Class | Service Type | Scopes | Token Directory |
+|-------|-------------|--------|-----------------|
+| `GmailAuth` | `GmailService` | `GmailReadonly`, `GmailSend` | `.gmail-tokens/` |
+| `CalendarAuth` | `CalendarService` | `Calendar` | `.calendar-tokens/` |
+| `ContactsAuth` | `PeopleServiceService` | `Contacts` | `.contacts-tokens/` |
+
+Each exposes a singleton via `public static readonly Instance`.
+
+### GoogleToolBase
+
+Abstract base class for all 12 Google OAuth tools:
+
+```csharp
+public abstract class GoogleToolBase : ITool
+{
+    protected readonly string GoogleClientId;
+    protected readonly string GoogleClientSecret;
+
+    protected GoogleToolBase(string googleClientId, string googleClientSecret);
+
+    public abstract string Name { get; }
+    public abstract string Description { get; }
+    public abstract JsonNode InputSchema { get; }
+    public abstract Task<string> ExecuteAsync(JsonNode input);
+
+    protected string HandleError(string message);
+}
+```
+
+`HandleError()` logs the error via Serilog and returns a formatted error string (`"Error in {toolName}: {message}"`). This ensures consistent error handling across all Google tools.
+
+### HttpClientFactory
+
+Shared `HttpClient` instances for all tool HTTP calls:
+
+```csharp
+public static class HttpClientFactory
+{
+    public static HttpClient Browser { get; }  // Browser-like headers, redirect following, 30s timeout
+    public static HttpClient Api { get; }      // No browser headers, 30s timeout
+}
+```
+
+| Client | Used By | Configuration |
+|--------|---------|---------------|
+| `Browser` | `WebFetchTool`, `LinkedInJobsTool`, `LinkedInJobDetailTool` | User-Agent, Accept, Accept-Language headers; auto-redirect up to 5 hops; 30-second timeout |
+| `Api` | `BraveSearchProvider`, `AnthropicUsageTool` | 30-second timeout; no browser headers |
+
+This replaces five separate `static HttpClient` instances that were scattered across tool classes, some without timeouts configured.
 
 ## MCP Integration
 
@@ -223,7 +309,8 @@ public class McpToolProxy : ITool
 | **Name** | `{serverName}__{toolName}` (double underscore separator) |
 | **Description** | Taken directly from the MCP tool definition |
 | **InputSchema** | Parsed from the MCP tool's JSON schema |
-| **ExecuteAsync** | Converts `JsonNode` input to a dictionary, calls `client.CallToolAsync`, extracts text content blocks from the result |
+| **ExecuteAsync** | Converts `JsonNode` input to a dictionary, calls `client.CallToolAsync` with retry, extracts text content blocks from the result |
+| **Retry** | Polly retry with 2 attempts, exponential backoff from 2 seconds, handles `HttpRequestException`, `TaskCanceledException`, and `TimeoutException` |
 | **Error handling** | If the MCP result has `IsError == true`, throws `InvalidOperationException` with the text content |
 
 ### MCP tool naming
@@ -244,6 +331,11 @@ Handles:
 - HTML entity decoding
 - Whitespace normalization
 
+### ContactsFormatter
+
+- `FormatContactSummary(Person)` — resource name, display name, primary email, primary phone (used by search and list tools)
+- `FormatContactDetail(Person)` — full details including etag, all emails, all phones, addresses, organizations, biographies (used by get, create, and update tools)
+
 ### GmailParser
 
 - `DecodeBody` -- base64url decoding for Gmail message bodies
@@ -257,7 +349,7 @@ Handles:
 3. Implement `ExecuteAsync` with error handling (return error strings, don't throw)
 4. Register it in `ToolRegistry.GetAll()` -- unconditionally or behind a credential check
 
-Example skeleton:
+### Standard tool skeleton
 
 ```csharp
 public class MyTool : ITool
@@ -291,6 +383,66 @@ public class MyTool : ITool
             return $"Error: {ex.Message}";
         }
     }
+}
+```
+
+### Google API tool skeleton
+
+For tools that access Google APIs via OAuth2, extend `GoogleToolBase` and use the appropriate auth singleton:
+
+```csharp
+public class MyGoogleTool : GoogleToolBase
+{
+    public MyGoogleTool(string googleClientId, string googleClientSecret)
+        : base(googleClientId, googleClientSecret) { }
+
+    public override string Name => "my_google_tool";
+    public override string Description => "Does something with a Google API.";
+
+    public override JsonNode InputSchema => JsonNode.Parse("""
+        {
+            "type": "object",
+            "properties": {
+                "param": { "type": "string", "description": "A parameter" }
+            },
+            "required": ["param"]
+        }
+        """)!;
+
+    public override async Task<string> ExecuteAsync(JsonNode input)
+    {
+        try
+        {
+            var service = await MyAuth.Instance.GetServiceAsync(GoogleClientId, GoogleClientSecret);
+            // Use service to call the Google API
+            return "Result";
+        }
+        catch (Exception ex)
+        {
+            return HandleError(ex.Message);
+        }
+    }
+}
+```
+
+### Adding a new Google API service
+
+To add a new Google API (e.g., Google Drive), create an auth class extending `GoogleAuthBase<TService>`:
+
+```csharp
+public sealed class DriveAuth : GoogleAuthBase<DriveService>
+{
+    public static readonly DriveAuth Instance = new();
+
+    protected override string[] Scopes => [DriveService.Scope.DriveReadonly];
+    protected override string TokenDirectory => ".drive-tokens";
+
+    protected override DriveService CreateService(IConfigurableHttpClientInitializer credential) =>
+        new(new BaseClientService.Initializer
+        {
+            HttpClientInitializer = credential,
+            ApplicationName = "micro-x-agent-loop",
+        });
 }
 ```
 

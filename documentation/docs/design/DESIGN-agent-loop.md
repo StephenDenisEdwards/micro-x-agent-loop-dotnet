@@ -8,9 +8,12 @@ Key files collaborate to implement the loop:
 
 | File | Responsibility |
 |------|----------------|
-| `Program.cs` | REPL shell — reads user input, connects MCP, sets up logging, catches top-level exceptions |
+| `Program.cs` | Thin composition root — calls ConfigLoader, assembles tools, connects MCP, runs REPL |
+| `ConfigLoader.cs` | Loads and validates configuration from `appsettings.json` + environment variables into a typed `AppConfig` record |
+| `StartupDisplay.cs` | Renders startup banner (tool list, MCP servers, working directory, compaction config, logging sinks) |
 | `Agent.cs` | Orchestrator — manages conversation history, dispatches tool calls, enforces safety limits, triggers compaction |
-| `LlmClient.cs` | API client — streams responses via SSE, retries on rate limits with Polly |
+| `LlmClient.cs` | API client — streams responses via SSE, retries on rate limits via `RetryPipelineFactory` |
+| `RetryPipelineFactory.cs` | Shared Polly retry pipeline for all Anthropic API calls (used by LlmClient and SummarizeCompactionStrategy) |
 | `LoggingConfig.cs` | Configures Serilog sinks (console + file) from settings |
 | `Mcp/McpManager.cs` | Connects to MCP servers at startup, discovers tools |
 
@@ -100,33 +103,36 @@ public static async Task<(Message Message, List<ToolUseContent> ToolUseBlocks)> 
 ```
 
 1. Builds `MessageParameters` with `Stream = true`.
-2. Wraps the streaming call in a **Polly retry pipeline** (handles HTTP 429).
+2. Wraps the streaming call in the shared **Polly retry pipeline** from `RetryPipelineFactory` (handles HTTP 429, connection errors, and timeouts).
 3. Iterates over SSE events: writes `res.Delta.Text` to stdout in real time.
 4. After the stream completes, assembles the full `Message` and extracts `ToolUseContent` blocks.
 5. Returns both to the Agent for processing.
 
-**Polly retry configuration:**
+**Polly retry configuration** (defined in `RetryPipelineFactory`):
 
 | Setting | Value |
 |---------|-------|
 | Max retries | 5 |
 | Backoff | Exponential, starting at 10 seconds |
-| Trigger | `HttpRequestException` with `StatusCode == 429` |
-| On retry | Logs attempt number and wait time to stderr |
+| Triggers | `HttpRequestException` with `StatusCode == 429`, connection errors (`StatusCode is null`), `TaskCanceledException` (timeouts) |
+| On retry | Logs attempt number and wait time via Serilog |
 | Total max wait | ~310 seconds |
 
 If a partial stream is interrupted by a 429, the `outputs` list is cleared and the entire streaming call restarts from scratch. This is an acceptable trade-off — the alternative (resuming a partial stream) would add significant complexity.
 
-### Program.cs (REPL)
+### Program.cs (Composition Root)
 
-The top-level shell that ties everything together:
+A thin entry point that wires together the application:
 
 1. Loads secrets from `.env` via DotNetEnv.
-2. Loads settings from `appsettings.json` via Microsoft.Extensions.Configuration.
-3. Validates that `ANTHROPIC_API_KEY` is set.
-4. Builds the tool list via `ToolRegistry.GetAll()` (conditional Gmail registration).
+2. Loads and validates configuration via `ConfigLoader.Load()` (returns a typed `AppConfig` record).
+3. Builds the tool list via `ToolRegistry.GetAll()` (conditional registration based on credentials).
+4. Connects to MCP servers via `McpManager.ConnectAllAsync()`.
 5. Creates an `Agent` with an immutable `AgentConfig`.
-6. Enters a `while (true)` REPL loop: `you> ` prompt → `agent.RunAsync()` → catch exceptions.
+6. Renders the startup banner via `StartupDisplay.Show()`.
+7. Enters a `while (true)` REPL loop: `you> ` prompt → `agent.RunAsync()` → catch exceptions.
+
+Configuration loading and startup display are each in their own focused files (`ConfigLoader.cs`, `StartupDisplay.cs`), keeping Program.cs under 100 lines.
 
 ## Conversation History
 
@@ -191,10 +197,11 @@ Errors are handled at multiple levels to keep the loop running:
 |-------|---------------|----------|
 | Unknown tool name | `ExecuteToolsAsync` | Returns `ToolResultContent` with `IsError = true` — Claude sees the error and can adapt |
 | Tool throws exception | `ExecuteToolsAsync` | Catches `Exception`, returns error message to Claude |
-| API rate limit (HTTP 429) | `LlmClient` (Polly) | Exponential backoff retry, up to 5 attempts |
+| API rate limit (HTTP 429) | `RetryPipelineFactory` (Polly) | Exponential backoff retry, up to 5 attempts. Also handles connection errors and timeouts. |
+| MCP tool transient failure | `McpToolProxy` (Polly) | Exponential backoff retry, up to 2 attempts |
 | Unrecoverable API error | `Program.cs` | Exception propagates to REPL catch block, user sees error, loop continues |
-| Oversized tool output | `TruncateToolResult` | Truncated with appended notice |
-| Oversized conversation | `TrimConversationHistory` | Oldest messages removed, warning to stderr |
+| Oversized tool output | `TruncateToolResult` | Truncated with appended notice, logged via Serilog |
+| Oversized conversation | `TrimConversationHistory` | Oldest messages removed, logged via Serilog |
 
 The key principle is that **tool errors are fed back to Claude as data, not thrown as exceptions**. This allows Claude to reason about the error and try a different approach (e.g., correcting a file path or adjusting a command), rather than terminating the turn.
 

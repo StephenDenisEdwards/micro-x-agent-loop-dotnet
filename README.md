@@ -281,10 +281,13 @@ Read my CV, search LinkedIn for .NET jobs in London posted this week, and write 
 ## Architecture
 
 ```
-Program.cs              -- Entry point: loads config, builds tools, connects MCP, starts REPL
+Program.cs              -- Entry point: thin composition root (config → tools → MCP → REPL)
+ConfigLoader.cs         -- Loads config from appsettings.json + environment variables
+StartupDisplay.cs       -- Renders startup banner (tool list, MCP servers, config summary)
 Agent.cs                -- Agent loop: streaming, parallel tool dispatch, history management
 AgentConfig.cs          -- Immutable configuration record
-LlmClient.cs            -- Anthropic API streaming + Polly retry pipeline
+LlmClient.cs            -- Anthropic API streaming with shared retry pipeline
+RetryPipelineFactory.cs -- Shared Polly retry pipeline for API calls (rate limits, timeouts)
 SystemPrompt.cs         -- Dynamic system prompt
 LoggingConfig.cs        -- Serilog logging setup
 ITool.cs                -- Tool interface
@@ -293,9 +296,12 @@ SummarizeCompactionStrategy.cs -- LLM-based conversation summarization
 NoneCompactionStrategy.cs -- No-op compaction
 Mcp/
   McpManager.cs         -- MCP server connection lifecycle
-  McpToolProxy.cs       -- MCP-to-ITool adapter
+  McpToolProxy.cs       -- MCP-to-ITool adapter with retry
 Tools/
   ToolRegistry.cs       -- Tool assembly with conditional registration
+  GoogleAuthBase.cs     -- Thread-safe generic base for Google OAuth2 (see ADR-008)
+  GoogleToolBase.cs     -- Abstract base for all Google tools (shared credentials + error handling)
+  HttpClientFactory.cs  -- Shared HttpClient instances (Browser + Api)
   BashTool.cs
   ReadFileTool.cs
   WriteFileTool.cs
@@ -310,18 +316,18 @@ Tools/
     LinkedInJobsTool.cs
     LinkedInJobDetailTool.cs
   Gmail/
-    GmailAuth.cs
+    GmailAuth.cs        -- Extends GoogleAuthBase<GmailService>
     GmailParser.cs
     GmailSearchTool.cs
     GmailReadTool.cs
     GmailSendTool.cs
   Calendar/
-    CalendarAuth.cs
+    CalendarAuth.cs     -- Extends GoogleAuthBase<CalendarService>
     CalendarListEventsTool.cs
     CalendarCreateEventTool.cs
     CalendarGetEventTool.cs
   Contacts/
-    ContactsAuth.cs
+    ContactsAuth.cs     -- Extends GoogleAuthBase<PeopleServiceService>
     ContactsFormatter.cs
     ContactsSearchTool.cs
     ContactsListTool.cs
@@ -338,7 +344,7 @@ Tools/
 Full documentation lives in [`documentation/docs/`](documentation/docs/index.md):
 
 - [**Software Architecture Document**](documentation/docs/architecture/SAD.md) — system overview, components, data flow (arc42 lite)
-- [**Architecture Decision Records**](documentation/docs/architecture/decisions/README.md) — ADRs for secrets, retry, streaming, MCP, contacts
+- [**Architecture Decision Records**](documentation/docs/architecture/decisions/README.md) — ADRs for secrets, retry, streaming, MCP, contacts, refactoring
 - [**Agent Loop Design**](documentation/docs/design/DESIGN-agent-loop.md) — core loop, parallel execution, streaming, compaction
 - [**Tool System Design**](documentation/docs/design/DESIGN-tool-system.md) — ITool interface, registry, built-in tools, MCP integration
 - [**Compaction Design**](documentation/docs/design/DESIGN-compaction.md) — LLM-based conversation summarization strategy

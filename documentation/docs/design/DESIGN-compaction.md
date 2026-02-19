@@ -231,16 +231,16 @@ The user refines criteria and searches again. Tokens hit ~85K. Compaction trigge
 
 ## Transparency
 
-All compaction activity goes to stderr (matching the existing pattern):
+All compaction activity is logged via Serilog (structured logging):
 
 ```
-  Compaction: estimated ~85,200 tokens, threshold 80,000 — compacting 18 messages
-  Compaction: summarized 18 messages into ~800 tokens, freed ~72,000 estimated tokens
+INF Compaction: estimated ~85,200 tokens, threshold 80,000 — compacting 18 messages
+INF Compaction: summarized 18 messages into ~800 tokens, freed ~72,000 estimated tokens
 ```
 
 On failure:
 ```
-  Warning: Compaction failed: {error}. Falling back to history trimming.
+WRN Compaction failed: {error}. Falling back to history trimming.
 ```
 
 ## Implementation
@@ -250,11 +250,24 @@ The design was implemented using the strategy pattern rather than a static `Comp
 | File | Description |
 |------|-------------|
 | `ICompactionStrategy.cs` | Interface with single `MaybeCompactAsync(List<Message>)` method |
-| `SummarizeCompactionStrategy.cs` | Full implementation with token estimation, boundary adjustment, LLM summarization, and message reconstruction |
+| `SummarizeCompactionStrategy.cs` | Full implementation with token estimation, boundary adjustment, LLM summarization, and message reconstruction. Uses `RetryPipelineFactory` for API retry and named constants for all thresholds (see ADR-008). |
 | `NoneCompactionStrategy.cs` | No-op implementation for backward compatibility |
+| `RetryPipelineFactory.cs` | Shared Polly retry pipeline used by both `SummarizeCompactionStrategy` and `LlmClient` |
 | `AgentConfig.cs` | Added `CompactionStrategy` parameter |
 | `Agent.cs` | Added `MaybeCompactAsync()` called after user messages and tool results |
-| `Program.cs` | Parses `CompactionStrategy`, `CompactionThresholdTokens`, `ProtectedTailMessages` from config |
+| `ConfigLoader.cs` | Parses `CompactionStrategy`, `CompactionThresholdTokens`, `ProtectedTailMessages` from config |
+
+### Named Constants in SummarizeCompactionStrategy
+
+| Constant | Value | Purpose |
+|----------|-------|---------|
+| `CharsPerToken` | 4 | Heuristic for token estimation (chars / 4) |
+| `ToolInputPreviewChars` | 200 | Max chars to show when previewing tool input in summary |
+| `ToolResultPreviewChars` | 700 | Max total chars for tool result preview |
+| `ToolResultHeadChars` | 500 | Head portion of tool result preview |
+| `ToolResultTailChars` | 200 | Tail portion of tool result preview |
+| `MaxSummarizationInputChars` | 100,000 | Cap on total chars sent to the summarization model |
+| `SummarizationMaxTokens` | 4,096 | Max tokens for the summarization response |
 
 Configuration in `appsettings.json`:
 ```json
