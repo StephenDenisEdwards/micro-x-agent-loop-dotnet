@@ -20,7 +20,7 @@ A minimal AI agent loop built with .NET 8 and the Anthropic Claude API. The agen
 
 - [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
 - An [Anthropic API key](https://console.anthropic.com/)
-- (Optional) Google OAuth credentials for Gmail and Calendar tools
+- (Optional) Google OAuth credentials for Gmail, Calendar, and Contacts tools
 - (Optional) Brave Search API key for web search
 - (Optional) Anthropic Admin API key for usage reports
 
@@ -68,6 +68,12 @@ Tools:
   - calendar_list_events
   - calendar_create_event
   - calendar_get_event
+  - contacts_search
+  - contacts_list
+  - contacts_get
+  - contacts_create
+  - contacts_update
+  - contacts_delete
   - anthropic_usage
   - web_search
 MCP servers:
@@ -169,6 +175,17 @@ Secrets (API keys) stay in `.env` and are loaded by DotNetEnv.
 | `calendar_create_event` | Create events with title, time, attendees, description. |
 | `calendar_get_event` | Get full event details by ID. |
 
+### Google Contacts (conditional)
+
+| Tool | Description |
+|------|-------------|
+| `contacts_search` | Search contacts by name, email, or phone number. *(Requires Google credentials)* |
+| `contacts_list` | List contacts with pagination and sort options. |
+| `contacts_get` | Get full contact details by resource name. |
+| `contacts_create` | Create a new contact with name, email, phone, organization. |
+| `contacts_update` | Update an existing contact (requires etag for concurrency). |
+| `contacts_delete` | Delete a contact by resource name. |
+
 ### Anthropic Admin (conditional)
 
 | Tool | Description |
@@ -242,6 +259,13 @@ List my calendar events for next week
 Create a meeting for tomorrow at 2pm with alice@example.com
 ```
 
+### Contacts
+
+```
+Search my contacts for "John Smith"
+Create a new contact for Jane Doe with email jane@example.com and phone 07700900123
+```
+
 ### Usage reports
 
 ```
@@ -296,6 +320,15 @@ Tools/
     CalendarListEventsTool.cs
     CalendarCreateEventTool.cs
     CalendarGetEventTool.cs
+  Contacts/
+    ContactsAuth.cs
+    ContactsFormatter.cs
+    ContactsSearchTool.cs
+    ContactsListTool.cs
+    ContactsGetTool.cs
+    ContactsCreateTool.cs
+    ContactsUpdateTool.cs
+    ContactsDeleteTool.cs
   Anthropic/
     AnthropicUsageTool.cs -- Anthropic Admin API reports
 ```
@@ -305,10 +338,15 @@ Tools/
 Full documentation lives in [`documentation/docs/`](documentation/docs/index.md):
 
 - [**Software Architecture Document**](documentation/docs/architecture/SAD.md) — system overview, components, data flow (arc42 lite)
-- [**Architecture Decision Records**](documentation/docs/architecture/decisions/README.md) — ADRs for secrets, retry, streaming, MCP
+- [**Architecture Decision Records**](documentation/docs/architecture/decisions/README.md) — ADRs for secrets, retry, streaming, MCP, contacts
 - [**Agent Loop Design**](documentation/docs/design/DESIGN-agent-loop.md) — core loop, parallel execution, streaming, compaction
 - [**Tool System Design**](documentation/docs/design/DESIGN-tool-system.md) — ITool interface, registry, built-in tools, MCP integration
 - [**Compaction Design**](documentation/docs/design/DESIGN-compaction.md) — LLM-based conversation summarization strategy
+- [**Map-Evaluate Pattern**](documentation/docs/design/DESIGN-map-evaluate-pattern.md) — isolated scoring for criteria matching workflows
+- [**Account Management APIs**](documentation/docs/design/DESIGN-account-management-apis.md) — Anthropic/OpenAI admin API catalog
+- [**Planning Documents**](documentation/docs/planning/) — web fetch, web search, browser automation, memory, WhatsApp
+- [**Tool READMEs**](documentation/docs/design/tools/) — individual tool documentation
+- [**Example Prompts**](documentation/docs/examples/README.md) — working prompt templates for common tasks
 - [**Getting Started**](documentation/docs/operations/getting-started.md) — setup, prerequisites, first run
 - [**Configuration Reference**](documentation/docs/operations/appsettings.md) — all settings with types and defaults
 - [**Troubleshooting**](documentation/docs/operations/troubleshooting.md) — common issues and solutions

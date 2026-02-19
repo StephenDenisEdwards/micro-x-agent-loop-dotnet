@@ -2,6 +2,8 @@ bin/
 obj/
 .env
 .gmail-tokens/
+.calendar-tokens/
+.contacts-tokens/
 .claude/
 src/documents/
 src/MicroXAgentLoop/JobServe_Analysis*.md

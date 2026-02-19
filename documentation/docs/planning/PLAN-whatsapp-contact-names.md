@@ -1,0 +1,58 @@
+# Plan: Fix WhatsApp Contact Names
+
+**Status: Completed** (2026-02-19)
+
+## Problem
+
+WhatsApp tools return phone numbers instead of contact names for individual chats. Group names work correctly.
+
+**Example:** The agent shows `447930348027` where the phone and desktop app show "John Smith".
+
+All 59 chats in `messages.db` have a `name` column, but for individual contacts the value is the raw phone number or JID — never the person's actual name.
+
+## Root Cause
+
+The Go bridge (`whatsapp-mcp/whatsapp-bridge/main.go`) stores phone numbers as names because its `GetChatName()` function only checks `contact.FullName` (rarely populated via app state sync) and falls back to the raw JID. It ignores `PushName` and `BusinessName`, and doesn't handle `events.PushName` or `events.Contact`.
+
+## Key Discovery: whatsapp.db
+
+While investigating, we found that **whatsmeow already stores contact names** in a separate SQLite database (`whatsapp-bridge/store/whatsapp.db`), in the `whatsmeow_contacts` table:
+
+```
+whatsmeow_contacts:
+  our_jid      TEXT    -- our account JID
+  their_jid    TEXT    -- the contact's JID (matches chats.jid in messages.db)
+  first_name   TEXT    -- from phone address book
+  full_name    TEXT    -- from phone address book (99/138 contacts populated)
+  push_name    TEXT    -- self-chosen WhatsApp display name (60/138 populated)
+  business_name TEXT   -- verified business name
+```
+
+## Approach: Read from whatsapp.db (Python MCP server fix)
+
+Instead of modifying the Go bridge (upstream code we don't control), fix name resolution in the **Python MCP server** by reading contact names from `whatsapp.db`'s `whatsmeow_contacts` table.
+
+### Name Priority
+
+1. **`full_name`** from whatsmeow_contacts — your phone's address book name (best, 99/138 populated)
+2. **`push_name`** from whatsmeow_contacts — the name they chose for themselves (60/138 populated)
+3. **`business_name`** from whatsmeow_contacts — verified business name
+4. **`chats.name`** from messages.db — falls back to phone number (current behaviour)
+
+### Advantages over Go bridge fix
+
+- **No upstream fork needed** — we don't modify code we don't control
+- **Already populated** — whatsmeow has 99/138 full names and 60/138 push names stored
+- **Simple** — one new function, applied at the Python layer
+- **`full_name` available** — the Go bridge only tried `FullName` at runtime via API call; the SQLite store has it already persisted from app state sync
+
+## Deployment
+
+The fix is a **local uncommitted change** in the third-party `whatsapp-mcp` repo (`whatsapp-mcp-server/whatsapp.py`). It is not committed because `whatsapp-mcp` is an upstream repo we don't own ([lharries/whatsapp-mcp](https://github.com/lharries/whatsapp-mcp)) — see [ADR-006](../architecture/decisions/ADR-006-separate-repos-for-third-party-mcp-servers.md).
+
+## Limitations
+
+- **Names depend on app state sync completing.** If whatsmeow hasn't synced contacts yet, `whatsmeow_contacts` will be empty.
+- **Push names are not your address book names.** If you saved someone as "Mom" but their push name is "Jane Edwards", and `full_name` is empty, you'll see "Jane Edwards".
+- **LID JIDs may not resolve.** Some contacts appear with `@lid` JIDs in `messages.db` which may not match `their_jid` in `whatsmeow_contacts`.
+- **Local uncommitted change.** The fix is not version-controlled. A `git pull` or `git checkout` in the whatsapp-mcp repo will lose it.

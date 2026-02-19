@@ -1,5 +1,6 @@
 using MicroXAgentLoop.Tools.Anthropic;
 using MicroXAgentLoop.Tools.Calendar;
+using MicroXAgentLoop.Tools.Contacts;
 using MicroXAgentLoop.Tools.Gmail;
 using MicroXAgentLoop.Tools.LinkedIn;
 using MicroXAgentLoop.Tools.Web;
@@ -34,6 +35,12 @@ public static class ToolRegistry
             tools.Add(new CalendarListEventsTool(googleClientId, googleClientSecret));
             tools.Add(new CalendarCreateEventTool(googleClientId, googleClientSecret));
             tools.Add(new CalendarGetEventTool(googleClientId, googleClientSecret));
+            tools.Add(new ContactsSearchTool(googleClientId, googleClientSecret));
+            tools.Add(new ContactsListTool(googleClientId, googleClientSecret));
+            tools.Add(new ContactsGetTool(googleClientId, googleClientSecret));
+            tools.Add(new ContactsCreateTool(googleClientId, googleClientSecret));
+            tools.Add(new ContactsUpdateTool(googleClientId, googleClientSecret));
+            tools.Add(new ContactsDeleteTool(googleClientId, googleClientSecret));
         }
 
         if (!string.IsNullOrEmpty(anthropicAdminApiKey))
