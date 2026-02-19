@@ -1,50 +1,25 @@
-using Google.Apis.Auth.OAuth2;
 using Google.Apis.Gmail.v1;
+using Google.Apis.Http;
 using Google.Apis.Services;
-using Google.Apis.Util.Store;
 
 namespace MicroXAgentLoop.Tools.Gmail;
 
-public static class GmailAuth
+public sealed class GmailAuth : GoogleAuthBase<GmailService>
 {
-    private static readonly string[] Scopes =
+    public static readonly GmailAuth Instance = new();
+
+    protected override string[] Scopes =>
     [
         GmailService.Scope.GmailReadonly,
         GmailService.Scope.GmailSend,
     ];
 
-    private static GmailService? _service;
+    protected override string TokenDirectory => ".gmail-tokens";
 
-    public static async Task<GmailService> GetGmailServiceAsync(string clientId, string clientSecret)
-    {
-        if (_service is not null)
-            return _service;
-
-        if (string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(clientSecret))
-            throw new InvalidOperationException(
-                "GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must be set in .env");
-
-        var secrets = new ClientSecrets
-        {
-            ClientId = clientId,
-            ClientSecret = clientSecret,
-        };
-
-        var tokenPath = Path.Combine(Directory.GetCurrentDirectory(), ".gmail-tokens");
-
-        var credential = await GoogleWebAuthorizationBroker.AuthorizeAsync(
-            secrets,
-            Scopes,
-            "user",
-            CancellationToken.None,
-            new FileDataStore(tokenPath, true));
-
-        _service = new GmailService(new BaseClientService.Initializer
+    protected override GmailService CreateService(IConfigurableHttpClientInitializer credential) =>
+        new(new BaseClientService.Initializer
         {
             HttpClientInitializer = credential,
             ApplicationName = "micro-x-agent-loop",
         });
-
-        return _service;
-    }
 }

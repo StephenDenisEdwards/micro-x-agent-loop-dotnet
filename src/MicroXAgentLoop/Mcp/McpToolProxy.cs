@@ -2,6 +2,8 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
+using Polly;
+using Polly.Retry;
 using Serilog;
 
 namespace MicroXAgentLoop.Mcp;
@@ -11,6 +13,30 @@ namespace MicroXAgentLoop.Mcp;
 /// </summary>
 public class McpToolProxy : ITool
 {
+    private const int MaxRetryAttempts = 2;
+
+    private static readonly ResiliencePipeline RetryPipeline =
+        new ResiliencePipelineBuilder()
+            .AddRetry(new RetryStrategyOptions
+            {
+                MaxRetryAttempts = MaxRetryAttempts,
+                BackoffType = DelayBackoffType.Exponential,
+                Delay = TimeSpan.FromSeconds(2),
+                ShouldHandle = new PredicateBuilder()
+                    .Handle<HttpRequestException>()
+                    .Handle<TaskCanceledException>()
+                    .Handle<TimeoutException>(),
+                OnRetry = args =>
+                {
+                    Log.Warning(
+                        "MCP tool call failed: {Error}. Retrying in {Delay}s (attempt {Attempt}/{Max})...",
+                        args.Outcome.Exception?.Message, args.RetryDelay.TotalSeconds,
+                        args.AttemptNumber + 1, MaxRetryAttempts);
+                    return ValueTask.CompletedTask;
+                },
+            })
+            .Build();
+
     private readonly string _serverName;
     private readonly McpClientTool _mcpTool;
     private readonly McpClient _client;
@@ -45,24 +71,29 @@ public class McpToolProxy : ITool
             }
         }
 
-        var result = await _client.CallToolAsync(_mcpTool.Name, arguments);
-
-        Log.Debug(
-            "MCP raw response: {Name} | isError={IsError} | blocks={Count}",
-            Name, result.IsError, result.Content.Count);
-
-        var textParts = result.Content
-            .OfType<TextContentBlock>()
-            .Select(b => b.Text)
-            .ToList();
-
-        var output = textParts.Count > 0 ? string.Join("\n", textParts) : "(no output)";
-
-        if (result.IsError == true)
+        var output = await RetryPipeline.ExecuteAsync(async _ =>
         {
-            Log.Warning("MCP tool error: {Name} | result: {Output}", Name, output[..Math.Min(500, output.Length)]);
-            throw new InvalidOperationException(output);
-        }
+            var result = await _client.CallToolAsync(_mcpTool.Name, arguments);
+
+            Log.Debug(
+                "MCP raw response: {Name} | isError={IsError} | blocks={Count}",
+                Name, result.IsError, result.Content.Count);
+
+            var textParts = result.Content
+                .OfType<TextContentBlock>()
+                .Select(b => b.Text)
+                .ToList();
+
+            var text = textParts.Count > 0 ? string.Join("\n", textParts) : "(no output)";
+
+            if (result.IsError == true)
+            {
+                Log.Warning("MCP tool error: {Name} | result: {Output}", Name, text[..Math.Min(500, text.Length)]);
+                throw new InvalidOperationException(text);
+            }
+
+            return text;
+        });
 
         Log.Debug("MCP tool result: {Name} | chars={Chars}", Name, output.Length);
         return output;

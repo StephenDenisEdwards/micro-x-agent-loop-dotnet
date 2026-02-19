@@ -3,24 +3,18 @@ using Google.Apis.PeopleService.v1.Data;
 
 namespace MicroXAgentLoop.Tools.Contacts;
 
-public class ContactsUpdateTool : ITool
+public class ContactsUpdateTool : GoogleToolBase
 {
-    private readonly string _googleClientId;
-    private readonly string _googleClientSecret;
-
     public ContactsUpdateTool(string googleClientId, string googleClientSecret)
-    {
-        _googleClientId = googleClientId;
-        _googleClientSecret = googleClientSecret;
-    }
+        : base(googleClientId, googleClientSecret) { }
 
-    public string Name => "contacts_update";
+    public override string Name => "contacts_update";
 
-    public string Description =>
+    public override string Description =>
         "Update an existing Google Contact. Requires the resource name and etag " +
         "(from contacts_get). Provide only the fields you want to change.";
 
-    public JsonNode InputSchema => JsonNode.Parse("""
+    public override JsonNode InputSchema => JsonNode.Parse("""
         {
             "type": "object",
             "properties": {
@@ -69,11 +63,11 @@ public class ContactsUpdateTool : ITool
         }
         """)!;
 
-    public async Task<string> ExecuteAsync(JsonNode input)
+    public override async Task<string> ExecuteAsync(JsonNode input)
     {
         try
         {
-            var service = await ContactsAuth.GetContactsServiceAsync(_googleClientId, _googleClientSecret);
+            var service = await ContactsAuth.Instance.GetServiceAsync(GoogleClientId, GoogleClientSecret);
             var resourceName = input["resourceName"]!.GetValue<string>();
 
             var body = new Person
@@ -143,8 +137,7 @@ public class ContactsUpdateTool : ITool
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"  contacts_update error: {ex.Message}");
-            return $"Error updating contact: {ex.Message}";
+            return HandleError(ex.Message);
         }
     }
 }

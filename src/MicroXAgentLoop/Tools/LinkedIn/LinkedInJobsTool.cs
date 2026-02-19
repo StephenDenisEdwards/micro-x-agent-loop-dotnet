@@ -1,12 +1,13 @@
 using System.Text.Json.Nodes;
 using System.Web;
 using HtmlAgilityPack;
+using MicroXAgentLoop.Tools;
 
 namespace MicroXAgentLoop.Tools.LinkedIn;
 
 public class LinkedInJobsTool : ITool
 {
-    private static readonly HttpClient Http = new();
+    private static HttpClient Http => HttpClientFactory.Browser;
 
     public string Name => "linkedin_jobs";
 
@@ -76,11 +77,7 @@ public class LinkedInJobsTool : ITool
                       (string.IsNullOrEmpty(dateFilter) ? "" : $"&f_TPR={dateFilter}") +
                       $"&start=0&count={limit}{sortParam}";
 
-            var request = new HttpRequestMessage(HttpMethod.Get, url);
-            request.Headers.Add("User-Agent",
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
-
-            var response = await Http.SendAsync(request);
+            var response = await Http.GetAsync(url);
             if (!response.IsSuccessStatusCode)
                 return $"Error fetching LinkedIn jobs: HTTP {(int)response.StatusCode}";
 

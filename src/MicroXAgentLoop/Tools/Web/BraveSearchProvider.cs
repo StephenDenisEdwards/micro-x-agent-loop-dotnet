@@ -1,18 +1,15 @@
 using System.Text.Json;
+using MicroXAgentLoop.Tools;
 
 namespace MicroXAgentLoop.Tools.Web;
 
 public class BraveSearchProvider : ISearchProvider
 {
     private const string BraveSearchUrl = "https://api.search.brave.com/res/v1/web/search";
-    private const int TimeoutSeconds = 30;
 
     private readonly string _apiKey;
 
-    private static readonly HttpClient Http = new()
-    {
-        Timeout = TimeSpan.FromSeconds(TimeoutSeconds),
-    };
+    private static HttpClient Http => HttpClientFactory.Api;
 
     public BraveSearchProvider(string apiKey)
     {

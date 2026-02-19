@@ -3,24 +3,18 @@ using Google.Apis.PeopleService.v1;
 
 namespace MicroXAgentLoop.Tools.Contacts;
 
-public class ContactsListTool : ITool
+public class ContactsListTool : GoogleToolBase
 {
-    private readonly string _googleClientId;
-    private readonly string _googleClientSecret;
-
     public ContactsListTool(string googleClientId, string googleClientSecret)
-    {
-        _googleClientId = googleClientId;
-        _googleClientSecret = googleClientSecret;
-    }
+        : base(googleClientId, googleClientSecret) { }
 
-    public string Name => "contacts_list";
+    public override string Name => "contacts_list";
 
-    public string Description =>
+    public override string Description =>
         "List Google Contacts. Returns contacts with name, email, and phone number. " +
         "Supports pagination via pageToken.";
 
-    public JsonNode InputSchema => JsonNode.Parse("""
+    public override JsonNode InputSchema => JsonNode.Parse("""
         {
             "type": "object",
             "properties": {
@@ -41,11 +35,11 @@ public class ContactsListTool : ITool
         }
         """)!;
 
-    public async Task<string> ExecuteAsync(JsonNode input)
+    public override async Task<string> ExecuteAsync(JsonNode input)
     {
         try
         {
-            var service = await ContactsAuth.GetContactsServiceAsync(_googleClientId, _googleClientSecret);
+            var service = await ContactsAuth.Instance.GetServiceAsync(GoogleClientId, GoogleClientSecret);
             var pageSize = Math.Min(input["pageSize"]?.GetValue<int>() ?? 10, 100);
             var pageToken = input["pageToken"]?.GetValue<string>();
             var sortOrder = input["sortOrder"]?.GetValue<string>();
@@ -80,8 +74,7 @@ public class ContactsListTool : ITool
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"  contacts_list error: {ex.Message}");
-            return $"Error listing contacts: {ex.Message}";
+            return HandleError(ex.Message);
         }
     }
 }

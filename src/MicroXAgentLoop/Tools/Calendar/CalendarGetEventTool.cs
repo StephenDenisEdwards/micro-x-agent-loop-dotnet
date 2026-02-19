@@ -2,22 +2,16 @@ using System.Text.Json.Nodes;
 
 namespace MicroXAgentLoop.Tools.Calendar;
 
-public class CalendarGetEventTool : ITool
+public class CalendarGetEventTool : GoogleToolBase
 {
-    private readonly string _googleClientId;
-    private readonly string _googleClientSecret;
-
     public CalendarGetEventTool(string googleClientId, string googleClientSecret)
-    {
-        _googleClientId = googleClientId;
-        _googleClientSecret = googleClientSecret;
-    }
+        : base(googleClientId, googleClientSecret) { }
 
-    public string Name => "calendar_get_event";
+    public override string Name => "calendar_get_event";
 
-    public string Description => "Get full details of a Google Calendar event by its event ID.";
+    public override string Description => "Get full details of a Google Calendar event by its event ID.";
 
-    public JsonNode InputSchema => JsonNode.Parse("""
+    public override JsonNode InputSchema => JsonNode.Parse("""
         {
             "type": "object",
             "properties": {
@@ -34,11 +28,11 @@ public class CalendarGetEventTool : ITool
         }
         """)!;
 
-    public async Task<string> ExecuteAsync(JsonNode input)
+    public override async Task<string> ExecuteAsync(JsonNode input)
     {
         try
         {
-            var cal = await CalendarAuth.GetCalendarServiceAsync(_googleClientId, _googleClientSecret);
+            var cal = await CalendarAuth.Instance.GetServiceAsync(GoogleClientId, GoogleClientSecret);
             var eventId = input["eventId"]!.GetValue<string>();
             var calendarId = input["calendarId"]?.GetValue<string>() ?? "primary";
 
@@ -84,8 +78,7 @@ public class CalendarGetEventTool : ITool
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"  calendar_get_event error: {ex.Message}");
-            return $"Error getting calendar event: {ex.Message}";
+            return HandleError(ex.Message);
         }
     }
 }

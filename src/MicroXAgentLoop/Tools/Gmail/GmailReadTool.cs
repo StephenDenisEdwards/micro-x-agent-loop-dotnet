@@ -2,23 +2,17 @@ using System.Text.Json.Nodes;
 
 namespace MicroXAgentLoop.Tools.Gmail;
 
-public class GmailReadTool : ITool
+public class GmailReadTool : GoogleToolBase
 {
-    private readonly string _googleClientId;
-    private readonly string _googleClientSecret;
-
     public GmailReadTool(string googleClientId, string googleClientSecret)
-    {
-        _googleClientId = googleClientId;
-        _googleClientSecret = googleClientSecret;
-    }
+        : base(googleClientId, googleClientSecret) { }
 
-    public string Name => "gmail_read";
+    public override string Name => "gmail_read";
 
-    public string Description =>
+    public override string Description =>
         "Read the full content of a Gmail email by its message ID (from gmail_search results).";
 
-    public JsonNode InputSchema => JsonNode.Parse("""
+    public override JsonNode InputSchema => JsonNode.Parse("""
         {
             "type": "object",
             "properties": {
@@ -31,11 +25,11 @@ public class GmailReadTool : ITool
         }
         """)!;
 
-    public async Task<string> ExecuteAsync(JsonNode input)
+    public override async Task<string> ExecuteAsync(JsonNode input)
     {
         try
         {
-            var gmail = await GmailAuth.GetGmailServiceAsync(_googleClientId, _googleClientSecret);
+            var gmail = await GmailAuth.Instance.GetServiceAsync(GoogleClientId, GoogleClientSecret);
             var messageId = input["messageId"]!.GetValue<string>();
 
             var request = gmail.Users.Messages.Get("me", messageId);
@@ -59,7 +53,7 @@ public class GmailReadTool : ITool
         }
         catch (Exception ex)
         {
-            return $"Error reading email: {ex.Message}";
+            return HandleError(ex.Message);
         }
     }
 }

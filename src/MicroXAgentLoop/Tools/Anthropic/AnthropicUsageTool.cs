@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using MicroXAgentLoop.Tools;
 
 namespace MicroXAgentLoop.Tools.Anthropic;
 
@@ -22,7 +23,7 @@ public class AnthropicUsageTool : ITool
     };
 
     private readonly string _adminKey;
-    private static readonly HttpClient Http = new();
+    private static HttpClient Http => HttpClientFactory.Api;
 
     public AnthropicUsageTool(string adminApiKey)
     {

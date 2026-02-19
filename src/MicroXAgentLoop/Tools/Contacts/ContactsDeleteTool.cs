@@ -2,22 +2,16 @@ using System.Text.Json.Nodes;
 
 namespace MicroXAgentLoop.Tools.Contacts;
 
-public class ContactsDeleteTool : ITool
+public class ContactsDeleteTool : GoogleToolBase
 {
-    private readonly string _googleClientId;
-    private readonly string _googleClientSecret;
-
     public ContactsDeleteTool(string googleClientId, string googleClientSecret)
-    {
-        _googleClientId = googleClientId;
-        _googleClientSecret = googleClientSecret;
-    }
+        : base(googleClientId, googleClientSecret) { }
 
-    public string Name => "contacts_delete";
+    public override string Name => "contacts_delete";
 
-    public string Description => "Delete a Google Contact by resource name. This action cannot be undone.";
+    public override string Description => "Delete a Google Contact by resource name. This action cannot be undone.";
 
-    public JsonNode InputSchema => JsonNode.Parse("""
+    public override JsonNode InputSchema => JsonNode.Parse("""
         {
             "type": "object",
             "properties": {
@@ -30,11 +24,11 @@ public class ContactsDeleteTool : ITool
         }
         """)!;
 
-    public async Task<string> ExecuteAsync(JsonNode input)
+    public override async Task<string> ExecuteAsync(JsonNode input)
     {
         try
         {
-            var service = await ContactsAuth.GetContactsServiceAsync(_googleClientId, _googleClientSecret);
+            var service = await ContactsAuth.Instance.GetServiceAsync(GoogleClientId, GoogleClientSecret);
             var resourceName = input["resourceName"]!.GetValue<string>();
 
             await service.People.DeleteContact(resourceName).ExecuteAsync();
@@ -43,8 +37,7 @@ public class ContactsDeleteTool : ITool
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"  contacts_delete error: {ex.Message}");
-            return $"Error deleting contact: {ex.Message}";
+            return HandleError(ex.Message);
         }
     }
 }

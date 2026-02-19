@@ -2,25 +2,19 @@ using System.Text.Json.Nodes;
 
 namespace MicroXAgentLoop.Tools.Calendar;
 
-public class CalendarListEventsTool : ITool
+public class CalendarListEventsTool : GoogleToolBase
 {
-    private readonly string _googleClientId;
-    private readonly string _googleClientSecret;
-
     public CalendarListEventsTool(string googleClientId, string googleClientSecret)
-    {
-        _googleClientId = googleClientId;
-        _googleClientSecret = googleClientSecret;
-    }
+        : base(googleClientId, googleClientSecret) { }
 
-    public string Name => "calendar_list_events";
+    public override string Name => "calendar_list_events";
 
-    public string Description =>
+    public override string Description =>
         "List Google Calendar events by date range or search query. " +
         "Returns event ID, summary, start/end times, location, status, and organizer. " +
         "Defaults to today's events if no time range is specified.";
 
-    public JsonNode InputSchema => JsonNode.Parse("""
+    public override JsonNode InputSchema => JsonNode.Parse("""
         {
             "type": "object",
             "properties": {
@@ -49,11 +43,11 @@ public class CalendarListEventsTool : ITool
         }
         """)!;
 
-    public async Task<string> ExecuteAsync(JsonNode input)
+    public override async Task<string> ExecuteAsync(JsonNode input)
     {
         try
         {
-            var cal = await CalendarAuth.GetCalendarServiceAsync(_googleClientId, _googleClientSecret);
+            var cal = await CalendarAuth.Instance.GetServiceAsync(GoogleClientId, GoogleClientSecret);
 
             var timeMin = input["timeMin"]?.GetValue<string>();
             var timeMax = input["timeMax"]?.GetValue<string>();
@@ -111,8 +105,7 @@ public class CalendarListEventsTool : ITool
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"  calendar_list_events error: {ex.Message}");
-            return $"Error listing calendar events: {ex.Message}";
+            return HandleError(ex.Message);
         }
     }
 }

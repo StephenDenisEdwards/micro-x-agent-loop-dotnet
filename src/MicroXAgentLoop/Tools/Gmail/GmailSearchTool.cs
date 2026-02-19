@@ -2,23 +2,17 @@ using System.Text.Json.Nodes;
 
 namespace MicroXAgentLoop.Tools.Gmail;
 
-public class GmailSearchTool : ITool
+public class GmailSearchTool : GoogleToolBase
 {
-    private readonly string _googleClientId;
-    private readonly string _googleClientSecret;
-
     public GmailSearchTool(string googleClientId, string googleClientSecret)
-    {
-        _googleClientId = googleClientId;
-        _googleClientSecret = googleClientSecret;
-    }
+        : base(googleClientId, googleClientSecret) { }
 
-    public string Name => "gmail_search";
+    public override string Name => "gmail_search";
 
-    public string Description =>
+    public override string Description =>
         "Search Gmail using Gmail search syntax (e.g. 'is:unread', 'from:someone@example.com', 'subject:hello'). Returns a list of matching emails with ID, date, from, subject, and snippet.";
 
-    public JsonNode InputSchema => JsonNode.Parse("""
+    public override JsonNode InputSchema => JsonNode.Parse("""
         {
             "type": "object",
             "properties": {
@@ -35,11 +29,11 @@ public class GmailSearchTool : ITool
         }
         """)!;
 
-    public async Task<string> ExecuteAsync(JsonNode input)
+    public override async Task<string> ExecuteAsync(JsonNode input)
     {
         try
         {
-            var gmail = await GmailAuth.GetGmailServiceAsync(_googleClientId, _googleClientSecret);
+            var gmail = await GmailAuth.Instance.GetServiceAsync(GoogleClientId, GoogleClientSecret);
             var query = input["query"]!.GetValue<string>();
             var maxResults = input["maxResults"]?.GetValue<int>() ?? 10;
 
@@ -80,7 +74,7 @@ public class GmailSearchTool : ITool
         }
         catch (Exception ex)
         {
-            return $"Error searching Gmail: {ex.Message}";
+            return HandleError(ex.Message);
         }
     }
 }

@@ -4,21 +4,15 @@ using Google.Apis.Gmail.v1.Data;
 
 namespace MicroXAgentLoop.Tools.Gmail;
 
-public class GmailSendTool : ITool
+public class GmailSendTool : GoogleToolBase
 {
-    private readonly string _googleClientId;
-    private readonly string _googleClientSecret;
-
     public GmailSendTool(string googleClientId, string googleClientSecret)
-    {
-        _googleClientId = googleClientId;
-        _googleClientSecret = googleClientSecret;
-    }
+        : base(googleClientId, googleClientSecret) { }
 
-    public string Name => "gmail_send";
-    public string Description => "Send an email from your Gmail account.";
+    public override string Name => "gmail_send";
+    public override string Description => "Send an email from your Gmail account.";
 
-    public JsonNode InputSchema => JsonNode.Parse("""
+    public override JsonNode InputSchema => JsonNode.Parse("""
         {
             "type": "object",
             "properties": {
@@ -39,11 +33,11 @@ public class GmailSendTool : ITool
         }
         """)!;
 
-    public async Task<string> ExecuteAsync(JsonNode input)
+    public override async Task<string> ExecuteAsync(JsonNode input)
     {
         try
         {
-            var gmail = await GmailAuth.GetGmailServiceAsync(_googleClientId, _googleClientSecret);
+            var gmail = await GmailAuth.Instance.GetServiceAsync(GoogleClientId, GoogleClientSecret);
             var to = input["to"]!.GetValue<string>();
             var subject = input["subject"]!.GetValue<string>();
             var body = input["body"]!.GetValue<string>();
@@ -67,7 +61,7 @@ public class GmailSendTool : ITool
         }
         catch (Exception ex)
         {
-            return $"Error sending email: {ex.Message}";
+            return HandleError(ex.Message);
         }
     }
 }

@@ -2,24 +2,18 @@ using System.Text.Json.Nodes;
 
 namespace MicroXAgentLoop.Tools.Contacts;
 
-public class ContactsSearchTool : ITool
+public class ContactsSearchTool : GoogleToolBase
 {
-    private readonly string _googleClientId;
-    private readonly string _googleClientSecret;
-
     public ContactsSearchTool(string googleClientId, string googleClientSecret)
-    {
-        _googleClientId = googleClientId;
-        _googleClientSecret = googleClientSecret;
-    }
+        : base(googleClientId, googleClientSecret) { }
 
-    public string Name => "contacts_search";
+    public override string Name => "contacts_search";
 
-    public string Description =>
+    public override string Description =>
         "Search Google Contacts by name, email, phone number, or other fields. " +
         "Returns matching contacts with name, email, and phone number.";
 
-    public JsonNode InputSchema => JsonNode.Parse("""
+    public override JsonNode InputSchema => JsonNode.Parse("""
         {
             "type": "object",
             "properties": {
@@ -36,11 +30,11 @@ public class ContactsSearchTool : ITool
         }
         """)!;
 
-    public async Task<string> ExecuteAsync(JsonNode input)
+    public override async Task<string> ExecuteAsync(JsonNode input)
     {
         try
         {
-            var service = await ContactsAuth.GetContactsServiceAsync(_googleClientId, _googleClientSecret);
+            var service = await ContactsAuth.Instance.GetServiceAsync(GoogleClientId, GoogleClientSecret);
             var query = input["query"]!.GetValue<string>();
             var pageSize = Math.Min(input["pageSize"]?.GetValue<int>() ?? 10, 30);
 
@@ -66,8 +60,7 @@ public class ContactsSearchTool : ITool
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"  contacts_search error: {ex.Message}");
-            return $"Error searching contacts: {ex.Message}";
+            return HandleError(ex.Message);
         }
     }
 }

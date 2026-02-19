@@ -3,24 +3,18 @@ using Google.Apis.PeopleService.v1.Data;
 
 namespace MicroXAgentLoop.Tools.Contacts;
 
-public class ContactsCreateTool : ITool
+public class ContactsCreateTool : GoogleToolBase
 {
-    private readonly string _googleClientId;
-    private readonly string _googleClientSecret;
-
     public ContactsCreateTool(string googleClientId, string googleClientSecret)
-    {
-        _googleClientId = googleClientId;
-        _googleClientSecret = googleClientSecret;
-    }
+        : base(googleClientId, googleClientSecret) { }
 
-    public string Name => "contacts_create";
+    public override string Name => "contacts_create";
 
-    public string Description =>
+    public override string Description =>
         "Create a new Google Contact. At minimum requires a given name. " +
         "Can also set family name, email, phone, organization, and job title.";
 
-    public JsonNode InputSchema => JsonNode.Parse("""
+    public override JsonNode InputSchema => JsonNode.Parse("""
         {
             "type": "object",
             "properties": {
@@ -61,11 +55,11 @@ public class ContactsCreateTool : ITool
         }
         """)!;
 
-    public async Task<string> ExecuteAsync(JsonNode input)
+    public override async Task<string> ExecuteAsync(JsonNode input)
     {
         try
         {
-            var service = await ContactsAuth.GetContactsServiceAsync(_googleClientId, _googleClientSecret);
+            var service = await ContactsAuth.Instance.GetServiceAsync(GoogleClientId, GoogleClientSecret);
 
             var nameObj = new Name { GivenName = input["givenName"]!.GetValue<string>() };
 
@@ -116,8 +110,7 @@ public class ContactsCreateTool : ITool
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"  contacts_create error: {ex.Message}");
-            return $"Error creating contact: {ex.Message}";
+            return HandleError(ex.Message);
         }
     }
 }

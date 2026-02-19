@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using Anthropic.SDK;
 using Anthropic.SDK.Messaging;
+using Serilog;
 using CommonTool = Anthropic.SDK.Common.Tool;
 
 namespace MicroXAgentLoop;
@@ -139,7 +140,7 @@ public class Agent
         var originalLength = result.Length;
         var truncated = result[.._maxToolResultChars];
         var message = $"\n\n[OUTPUT TRUNCATED: Showing {_maxToolResultChars:N0} of {originalLength:N0} characters from {toolName}]";
-        Console.Error.WriteLine($"  Warning: {toolName} output truncated from {originalLength:N0} to {_maxToolResultChars:N0} chars");
+        Log.Warning("{ToolName} output truncated from {Original:N0} to {Max:N0} chars", toolName, originalLength, _maxToolResultChars);
         return truncated + message;
     }
 
@@ -152,9 +153,9 @@ public class Agent
         // Remove from the start (oldest messages) but keep at least the most recent exchange
         if (removeCount > 0)
         {
-            Console.Error.WriteLine(
-                $"  Note: Conversation history trimmed — removed {removeCount} oldest message(s) " +
-                $"to stay within the {_maxConversationMessages} message limit");
+            Log.Information(
+                "Conversation history trimmed — removed {Count} oldest message(s) to stay within {Max} message limit",
+                removeCount, _maxConversationMessages);
             _messages.RemoveRange(0, removeCount);
         }
     }

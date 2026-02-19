@@ -5,7 +5,7 @@ using Anthropic.SDK;
 using Anthropic.SDK.Common;
 using Anthropic.SDK.Messaging;
 using Polly;
-using Polly.Retry;
+using Serilog;
 using CommonTool = Anthropic.SDK.Common.Tool;
 
 namespace MicroXAgentLoop;
@@ -59,34 +59,7 @@ public static class LlmClient
         }
     }
 
-    private static readonly ResiliencePipeline RetryPipeline =
-        new ResiliencePipelineBuilder()
-            .AddRetry(new RetryStrategyOptions
-            {
-                MaxRetryAttempts = 5,
-                BackoffType = DelayBackoffType.Exponential,
-                Delay = TimeSpan.FromSeconds(10),
-                ShouldHandle = new PredicateBuilder()
-                    .Handle<HttpRequestException>(ex =>
-                        ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
-                    .Handle<HttpRequestException>(ex => ex.StatusCode is null) // connection error
-                    .Handle<TaskCanceledException>(), // timeout
-                OnRetry = args =>
-                {
-                    var reason = args.Outcome.Exception switch
-                    {
-                        HttpRequestException { StatusCode: System.Net.HttpStatusCode.TooManyRequests } => "Rate limited",
-                        HttpRequestException => "Connection error",
-                        TaskCanceledException => "Request timed out",
-                        _ => args.Outcome.Exception?.GetType().Name ?? "Unknown error",
-                    };
-                    Console.Error.WriteLine(
-                        $"{reason}. Retrying in {args.RetryDelay.TotalSeconds:F0}s " +
-                        $"(attempt {args.AttemptNumber + 1}/5)...");
-                    return ValueTask.CompletedTask;
-                },
-            })
-            .Build();
+    private static readonly ResiliencePipeline RetryPipeline = RetryPipelineFactory.Create();
 
     public static AnthropicClient CreateClient(string apiKey)
     {
@@ -172,7 +145,7 @@ public static class LlmClient
         // Extract token usage and stop reason from streamed outputs
         var inputTokens = outputs.FirstOrDefault()?.StreamStartMessage?.Usage?.InputTokens ?? 0;
         var outputTokens = outputs.LastOrDefault()?.Usage?.OutputTokens ?? 0;
-        Console.Error.WriteLine($"  [{inputTokens} in / {outputTokens} out tokens]");
+        Log.Information("[{InputTokens} in / {OutputTokens} out tokens]", inputTokens, outputTokens);
 
         var stopReason = outputs
             .Select(o => o.StopReason)

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using HtmlAgilityPack;
+using MicroXAgentLoop.Tools;
 
 namespace MicroXAgentLoop.Tools.Web;
 
@@ -8,23 +9,8 @@ public class WebFetchTool : ITool
 {
     private const int DefaultMaxChars = 50_000;
     private const int MaxResponseBytes = 2_000_000; // 2 MB
-    private const int TimeoutSeconds = 30;
-    private const int MaxRedirects = 5;
 
-    private static readonly HttpClient Http = new(new HttpClientHandler
-    {
-        AllowAutoRedirect = true,
-        MaxAutomaticRedirections = MaxRedirects,
-    })
-    {
-        Timeout = TimeSpan.FromSeconds(TimeoutSeconds),
-        DefaultRequestHeaders =
-        {
-            { "User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" },
-            { "Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" },
-            { "Accept-Language", "en-US,en;q=0.5" },
-        },
-    };
+    private static HttpClient Http => HttpClientFactory.Browser;
 
     public string Name => "web_fetch";
 
@@ -70,7 +56,7 @@ public class WebFetchTool : ITool
         }
         catch (TaskCanceledException)
         {
-            return $"Error: Request timed out after {TimeoutSeconds} seconds";
+            return "Error: Request timed out";
         }
         catch (HttpRequestException ex)
         {

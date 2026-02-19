@@ -2,25 +2,19 @@ using System.Text.Json.Nodes;
 
 namespace MicroXAgentLoop.Tools.Contacts;
 
-public class ContactsGetTool : ITool
+public class ContactsGetTool : GoogleToolBase
 {
-    private readonly string _googleClientId;
-    private readonly string _googleClientSecret;
-
     public ContactsGetTool(string googleClientId, string googleClientSecret)
-    {
-        _googleClientId = googleClientId;
-        _googleClientSecret = googleClientSecret;
-    }
+        : base(googleClientId, googleClientSecret) { }
 
-    public string Name => "contacts_get";
+    public override string Name => "contacts_get";
 
-    public string Description =>
+    public override string Description =>
         "Get full details of a Google Contact by resource name. " +
         "Returns name, emails, phones, addresses, organization, biography, and etag " +
         "(needed for updates).";
 
-    public JsonNode InputSchema => JsonNode.Parse("""
+    public override JsonNode InputSchema => JsonNode.Parse("""
         {
             "type": "object",
             "properties": {
@@ -33,11 +27,11 @@ public class ContactsGetTool : ITool
         }
         """)!;
 
-    public async Task<string> ExecuteAsync(JsonNode input)
+    public override async Task<string> ExecuteAsync(JsonNode input)
     {
         try
         {
-            var service = await ContactsAuth.GetContactsServiceAsync(_googleClientId, _googleClientSecret);
+            var service = await ContactsAuth.Instance.GetServiceAsync(GoogleClientId, GoogleClientSecret);
             var resourceName = input["resourceName"]!.GetValue<string>();
 
             var request = service.People.Get(resourceName);
@@ -49,8 +43,7 @@ public class ContactsGetTool : ITool
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"  contacts_get error: {ex.Message}");
-            return $"Error getting contact: {ex.Message}";
+            return HandleError(ex.Message);
         }
     }
 }

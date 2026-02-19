@@ -3,45 +3,39 @@ using System.Text.Json;
 using Anthropic.SDK;
 using Anthropic.SDK.Messaging;
 using Polly;
-using Polly.Retry;
+using Serilog;
 
 namespace MicroXAgentLoop;
 
 public class SummarizeCompactionStrategy : ICompactionStrategy
 {
+    /// <summary>Approximate chars-per-token ratio for estimation.</summary>
+    private const int CharsPerToken = 4;
+
+    /// <summary>Max chars to show when previewing a tool input in the summary.</summary>
+    private const int ToolInputPreviewChars = 200;
+
+    /// <summary>Max chars to show when previewing a tool result in the summary.</summary>
+    private const int ToolResultPreviewChars = 700;
+
+    /// <summary>Head portion of tool result preview.</summary>
+    private const int ToolResultHeadChars = 500;
+
+    /// <summary>Tail portion of tool result preview.</summary>
+    private const int ToolResultTailChars = 200;
+
+    /// <summary>Cap on total chars sent to the summarization model.</summary>
+    private const int MaxSummarizationInputChars = 100_000;
+
+    /// <summary>Max tokens for the summarization response.</summary>
+    private const int SummarizationMaxTokens = 4096;
+
     private readonly AnthropicClient _client;
     private readonly string _model;
     private readonly int _thresholdTokens;
     private readonly int _protectedTailMessages;
 
-    private static readonly ResiliencePipeline RetryPipeline =
-        new ResiliencePipelineBuilder()
-            .AddRetry(new RetryStrategyOptions
-            {
-                MaxRetryAttempts = 5,
-                BackoffType = DelayBackoffType.Exponential,
-                Delay = TimeSpan.FromSeconds(10),
-                ShouldHandle = new PredicateBuilder()
-                    .Handle<HttpRequestException>(ex =>
-                        ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
-                    .Handle<HttpRequestException>(ex => ex.StatusCode is null) // connection error
-                    .Handle<TaskCanceledException>(), // timeout
-                OnRetry = args =>
-                {
-                    var reason = args.Outcome.Exception switch
-                    {
-                        HttpRequestException { StatusCode: System.Net.HttpStatusCode.TooManyRequests } => "Rate limited",
-                        HttpRequestException => "Connection error",
-                        TaskCanceledException => "Request timed out",
-                        _ => args.Outcome.Exception?.GetType().Name ?? "Unknown error",
-                    };
-                    Console.Error.WriteLine(
-                        $"{reason}. Retrying in {args.RetryDelay.TotalSeconds:F0}s " +
-                        $"(attempt {args.AttemptNumber + 1}/5)...");
-                    return ValueTask.CompletedTask;
-                },
-            })
-            .Build();
+    private static readonly ResiliencePipeline RetryPipeline = RetryPipelineFactory.Create();
 
     private const string SummarizePrompt =
         """
@@ -97,9 +91,9 @@ public class SummarizeCompactionStrategy : ICompactionStrategy
 
         var compactable = messages.GetRange(compactStart, compactEnd - compactStart);
 
-        Console.Error.WriteLine(
-            $"  Compaction: estimated ~{estimated:N0} tokens, threshold {_thresholdTokens:N0}" +
-            $" — compacting {compactable.Count} messages");
+        Log.Information(
+            "Compaction: estimated ~{Estimated:N0} tokens, threshold {Threshold:N0} — compacting {Count} messages",
+            estimated, _thresholdTokens, compactable.Count);
 
         string summary;
         try
@@ -108,18 +102,17 @@ public class SummarizeCompactionStrategy : ICompactionStrategy
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine(
-                $"  Warning: Compaction failed: {ex.Message}. Falling back to history trimming.");
+            Log.Warning("Compaction failed: {Message}. Falling back to history trimming.", ex.Message);
             return messages;
         }
 
         var result = RebuildMessages(messages, compactEnd, summary);
 
-        var summaryTokens = summary.Length / 4;
+        var summaryTokens = summary.Length / CharsPerToken;
         var freed = estimated - EstimateTokens(result);
-        Console.Error.WriteLine(
-            $"  Compaction: summarized {compactable.Count} messages into ~{summaryTokens:N0} tokens," +
-            $" freed ~{freed:N0} estimated tokens");
+        Log.Information(
+            "Compaction: summarized {Count} messages into ~{SummaryTokens:N0} tokens, freed ~{Freed:N0} estimated tokens",
+            compactable.Count, summaryTokens, freed);
 
         return result;
     }
@@ -150,7 +143,7 @@ public class SummarizeCompactionStrategy : ICompactionStrategy
                 }
             }
         }
-        return totalChars / 4;
+        return totalChars / CharsPerToken;
     }
 
     private static string FormatForSummarization(List<Message> messages)
@@ -171,8 +164,8 @@ public class SummarizeCompactionStrategy : ICompactionStrategy
                         break;
                     case ToolUseContent toolUse:
                         var inp = JsonSerializer.Serialize(toolUse.Input);
-                        if (inp.Length > 200)
-                            inp = inp[..200] + "...";
+                        if (inp.Length > ToolInputPreviewChars)
+                            inp = inp[..ToolInputPreviewChars] + "...";
                         blockTexts.Add($"[Tool call: {toolUse.Name}({inp})]");
                         break;
                     case ToolResultContent toolResult:
@@ -193,9 +186,9 @@ public class SummarizeCompactionStrategy : ICompactionStrategy
 
     private static string PreviewText(string text)
     {
-        if (text.Length <= 700)
+        if (text.Length <= ToolResultPreviewChars)
             return text;
-        return text[..500] + "\n[...truncated...]\n" + text[^200..];
+        return text[..ToolResultHeadChars] + "\n[...truncated...]\n" + text[^ToolResultTailChars..];
     }
 
     private async Task<string> SummarizeAsync(List<Message> compactable)
@@ -203,9 +196,9 @@ public class SummarizeCompactionStrategy : ICompactionStrategy
         var formatted = FormatForSummarization(compactable);
 
         // Cap summarization input
-        if (formatted.Length > 100_000)
+        if (formatted.Length > MaxSummarizationInputChars)
         {
-            const int half = 50_000;
+            var half = MaxSummarizationInputChars / 2;
             formatted =
                 formatted[..half]
                 + "\n\n[...middle of conversation omitted for brevity...]\n\n"
@@ -218,7 +211,7 @@ public class SummarizeCompactionStrategy : ICompactionStrategy
             var parameters = new MessageParameters
             {
                 Model = _model,
-                MaxTokens = 4096,
+                MaxTokens = SummarizationMaxTokens,
                 Temperature = 0,
                 Messages = [new Message(RoleType.User, SummarizePrompt + formatted)],
             };

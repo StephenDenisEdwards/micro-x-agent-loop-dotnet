@@ -3,24 +3,18 @@ using Google.Apis.Calendar.v3.Data;
 
 namespace MicroXAgentLoop.Tools.Calendar;
 
-public class CalendarCreateEventTool : ITool
+public class CalendarCreateEventTool : GoogleToolBase
 {
-    private readonly string _googleClientId;
-    private readonly string _googleClientSecret;
-
     public CalendarCreateEventTool(string googleClientId, string googleClientSecret)
-    {
-        _googleClientId = googleClientId;
-        _googleClientSecret = googleClientSecret;
-    }
+        : base(googleClientId, googleClientSecret) { }
 
-    public string Name => "calendar_create_event";
+    public override string Name => "calendar_create_event";
 
-    public string Description =>
+    public override string Description =>
         "Create a Google Calendar event. Supports timed events (ISO 8601 with time) " +
         "and all-day events (YYYY-MM-DD date only). Can add attendees by email.";
 
-    public JsonNode InputSchema => JsonNode.Parse("""
+    public override JsonNode InputSchema => JsonNode.Parse("""
         {
             "type": "object",
             "properties": {
@@ -57,11 +51,11 @@ public class CalendarCreateEventTool : ITool
         }
         """)!;
 
-    public async Task<string> ExecuteAsync(JsonNode input)
+    public override async Task<string> ExecuteAsync(JsonNode input)
     {
         try
         {
-            var cal = await CalendarAuth.GetCalendarServiceAsync(_googleClientId, _googleClientSecret);
+            var cal = await CalendarAuth.Instance.GetServiceAsync(GoogleClientId, GoogleClientSecret);
 
             var summary = input["summary"]!.GetValue<string>();
             var start = input["start"]!.GetValue<string>();
@@ -111,8 +105,7 @@ public class CalendarCreateEventTool : ITool
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"  calendar_create_event error: {ex.Message}");
-            return $"Error creating calendar event: {ex.Message}";
+            return HandleError(ex.Message);
         }
     }
 }
