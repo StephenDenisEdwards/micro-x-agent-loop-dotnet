@@ -26,7 +26,7 @@ Create a Google Calendar event with optional attendees, location, and descriptio
 
 - Source: `src/MicroXAgentLoop/Tools/Calendar/CalendarCreateEventTool.cs`
 - Uses `Google.Apis.Calendar.v3` NuGet package for Calendar API access
-- OAuth2 via `CalendarAuth.GetCalendarServiceAsync()`
+- OAuth2 via `CalendarAuth.Instance.GetServiceAsync()` (extends `GoogleAuthBase<CalendarService>`)
 
 ## Example
 

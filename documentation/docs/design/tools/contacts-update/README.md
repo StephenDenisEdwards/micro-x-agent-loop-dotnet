@@ -31,7 +31,7 @@ Update an existing Google Contact. Requires the resource name and etag for concu
 - Source: `src/MicroXAgentLoop/Tools/Contacts/ContactsUpdateTool.cs`
 - Uses `Google.Apis.PeopleService.v1` NuGet package
 - Builds `updatePersonFields` dynamically from provided fields (names, emailAddresses, phoneNumbers, organizations)
-- OAuth2 via `ContactsAuth.GetContactsServiceAsync()`
+- OAuth2 via `ContactsAuth.Instance.GetServiceAsync()` (extends `GoogleAuthBase<PeopleServiceService>`)
 
 ## Example
 

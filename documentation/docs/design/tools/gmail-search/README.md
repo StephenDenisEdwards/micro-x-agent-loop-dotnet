@@ -21,7 +21,7 @@ Search Gmail using Gmail's native search syntax.
 - Source: `src/MicroXAgentLoop/Tools/Gmail/GmailSearchTool.cs`
 - Uses `Google.Apis.Gmail.v1` NuGet package for Gmail API access
 - Fetches metadata headers (From, Subject, Date) for each result
-- OAuth2 via `GmailAuth.GetGmailServiceAsync()`
+- OAuth2 via `GmailAuth.Instance.GetServiceAsync()` (extends `GoogleAuthBase<GmailService>`)
 
 ## Example
 

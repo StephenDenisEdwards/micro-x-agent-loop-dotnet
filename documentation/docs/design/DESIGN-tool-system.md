@@ -38,7 +38,7 @@ public static IReadOnlyList<ITool> GetAll(
 
 | Parameter | Source | Controls |
 |-----------|--------|----------|
-| `workingDirectory` | `config.json` | Base path for `bash`, `read_file`, `write_file`, `append_file` |
+| `workingDirectory` | `appsettings.json` | Base path for `bash`, `read_file`, `write_file`, `append_file` |
 | `googleClientId` | `.env` `GOOGLE_CLIENT_ID` | Gmail, Calendar, and Contacts tools |
 | `googleClientSecret` | `.env` `GOOGLE_CLIENT_SECRET` | Gmail, Calendar, and Contacts tools |
 | `anthropicAdminApiKey` | `.env` `ANTHROPIC_ADMIN_API_KEY` | `anthropic_usage` tool |
@@ -250,7 +250,7 @@ The Model Context Protocol (MCP) integration allows the agent to dynamically dis
 ### Architecture
 
 ```
-config.json "mcpServers" section
+appsettings.json "mcpServers" section
         |
         v
    McpManager          -- manages connections to all configured servers
@@ -275,7 +275,7 @@ public class McpManager : IAsyncDisposable
 }
 ```
 
-- **Connects to all servers** listed in `config.json` under the `"mcpServers"` key
+- **Connects to all servers** listed in `appsettings.json` under the `"mcpServers"` key
 - **Supported transports:** `stdio` (spawns a child process with `Command` and `Args`) and `http` (connects to a `Url` endpoint)
 - **Fault isolation:** Individual server connection failures are logged but do not block startup or prevent other servers from connecting
 - **Cleanup:** Implements `IAsyncDisposable` to shut down all client connections

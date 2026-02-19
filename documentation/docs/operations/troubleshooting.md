@@ -54,6 +54,19 @@ The OAuth flow needs to open a browser for Google sign-in. If you're running in 
 
 **Fix:** Run the application locally (not via SSH or in a container) for the first OAuth flow. After tokens are cached in `.gmail-tokens/`, the browser is no longer needed.
 
+### Contacts tools returning "People API has not been used" error
+
+The Google People API must be enabled in the same Google Cloud project used for Gmail and Calendar.
+
+**Fix:**
+1. Go to the [Google Cloud Console](https://console.cloud.google.com/)
+2. Select the project used for your OAuth credentials
+3. Navigate to **APIs & Services** → **Library**
+4. Search for "People API" and click **Enable**
+5. Restart the agent
+
+The first time you use a Contacts tool, a separate OAuth consent flow will open in your browser (Contacts uses different scopes than Gmail/Calendar). Tokens are cached in `.contacts-tokens/`.
+
 ### Web search not working
 
 The `web_search` tool does not appear in the startup tool list.

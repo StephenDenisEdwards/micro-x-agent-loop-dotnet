@@ -21,7 +21,7 @@ Search Google Contacts by name, email, phone number, or other fields.
 - Source: `src/MicroXAgentLoop/Tools/Contacts/ContactsSearchTool.cs`
 - Uses `Google.Apis.PeopleService.v1` NuGet package
 - ReadMask: `names,emailAddresses,phoneNumbers`
-- OAuth2 via `ContactsAuth.GetContactsServiceAsync()`
+- OAuth2 via `ContactsAuth.Instance.GetServiceAsync()` (extends `GoogleAuthBase<PeopleServiceService>`)
 
 ## Example
 

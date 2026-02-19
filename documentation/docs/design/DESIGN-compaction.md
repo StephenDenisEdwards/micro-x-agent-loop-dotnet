@@ -32,7 +32,7 @@ Key constants: `BASE_CHUNK_RATIO=0.4`, `MIN_CHUNK_RATIO=0.15`, `SAFETY_MARGIN=1.
 
 Source files: `src/agents/compaction.ts`, `src/agents/pi-embedded-runner/compact.ts`, `src/agents/context-window-guard.ts`
 
-## Proposed Approach
+## Approach
 
 **Single-pass LLM summarization** triggered by a token-estimate threshold. When estimated context exceeds a configurable limit, the "middle" of the conversation (between the first user message and the most recent N messages) is summarized by Claude into a concise narrative and injected back as a context summary. The old messages are replaced, freeing context budget while preserving key facts.
 
@@ -40,36 +40,21 @@ This adapts openclaw's core idea while keeping the implementation proportional t
 
 ## Architecture
 
-### New File: `Compactor.cs`
+The design uses the **strategy pattern** via `ICompactionStrategy`, allowing the compaction behavior to be swapped at configuration time.
 
-A static helper class (matching the `LlmClient.cs` pattern) with two public methods:
+### Key Files
 
-```csharp
-public static class Compactor
-{
-    /// Estimate total tokens for a message list using chars/4 heuristic.
-    public static int EstimateTokens(IReadOnlyList<Message> messages);
+| File | Description |
+|------|-------------|
+| `ICompactionStrategy.cs` | Interface with single `MaybeCompactAsync(List<Message>)` method |
+| `SummarizeCompactionStrategy.cs` | Full implementation: token estimation, boundary adjustment, LLM summarization, message reconstruction. Uses `RetryPipelineFactory` for API retry and named constants for all thresholds (see ADR-008). |
+| `NoneCompactionStrategy.cs` | No-op implementation — conversation is only managed by message count trimming |
+| `RetryPipelineFactory.cs` | Shared Polly retry pipeline used by both `SummarizeCompactionStrategy` and `LlmClient` |
+| `AgentConfig.cs` | `CompactionStrategy` parameter (accepts `ICompactionStrategy?`) |
+| `Agent.cs` | `MaybeCompactAsync()` called after user messages and after tool results |
+| `ConfigLoader.cs` | Parses `CompactionStrategy`, `CompactionThresholdTokens`, `ProtectedTailMessages` from `appsettings.json` |
 
-    /// Summarize compactable messages via a Claude API call.
-    /// Returns the summary text, count of compacted messages, and estimated tokens saved.
-    public static async Task<(string Summary, int CompactedCount, int EstimatedTokensSaved)>
-        CompactAsync(AnthropicClient client, string model,
-                     List<Message> messages, int protectedTailMessages);
-}
-```
-
-### Modified Files
-
-| File | Change |
-|------|--------|
-| `AgentConfig.cs` | Add 3 fields: `CompactionThresholdTokens`, `ProtectedTailMessages`, `CompactionEnabled` |
-| `Agent.cs` | Add `MaybeCompactAsync()`, `RebuildMessagesWithSummary()`; replace `TrimConversationHistory()` calls |
-| `Program.cs` | Parse new config values from `appsettings.json` |
-| `appsettings.json` | Add compaction settings |
-
-### No Changes To
-
-`LlmClient.cs`, `ITool.cs`, `SystemPrompt.cs`, any tool implementations. Compaction is entirely within the orchestration layer.
+Compaction is entirely within the orchestration layer — no changes to `LlmClient.cs`, `ITool.cs`, `SystemPrompt.cs`, or any tool implementations.
 
 ## Algorithm
 
@@ -90,10 +75,10 @@ Divide total characters by 4 to get estimated tokens. This is the standard heuri
 Called at the same two points where `TrimConversationHistory()` currently runs (after adding a user message and after adding tool results):
 
 ```
-estimated tokens > CompactionThresholdTokens (80K)?
-  No  → return (do nothing)
-  Yes → CompactionEnabled?
-    No  → fall back to old TrimConversationHistory()
+CompactionStrategy is "summarize"?
+  No  → NoneCompactionStrategy (no-op, rely on message count trimming)
+  Yes → estimated tokens > CompactionThresholdTokens (80K)?
+    No  → return (do nothing)
     Yes → compaction zone has ≥ 2 messages?
       No  → return (everything is protected, accept the large context)
       Yes → run compaction
@@ -165,16 +150,16 @@ The first user message and summary are merged into a single user message to avoi
 
 ### Fallback
 
-- If the summarization API call fails (network error, rate limit exhausted), catch the exception, log to stderr, and fall back to `TrimConversationHistory()`.
+- If the summarization API call fails (network error, rate limit exhausted), catch the exception, log a warning via Serilog, and fall back to `TrimConversationHistory()`.
 - The existing `MaxConversationMessages` trimming still runs as a hard backstop after compaction.
 
 ## Configuration
 
 | Setting | Type | Default | Purpose |
 |---------|------|---------|---------|
+| `CompactionStrategy` | string | `"none"` | Compaction strategy: `"none"` or `"summarize"` |
 | `CompactionThresholdTokens` | int | 80,000 | Estimated token count that triggers compaction |
 | `ProtectedTailMessages` | int | 6 | Recent messages to never compact (≈3 exchange pairs) |
-| `CompactionEnabled` | bool | true | Kill switch to revert to old trimming behavior |
 
 **Rationale for defaults:**
 

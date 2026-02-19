@@ -16,7 +16,6 @@ Central navigation hub for all project documentation.
 - [Agent Loop Design](design/DESIGN-agent-loop.md) - Core agent loop, tool dispatch, streaming, compaction
 - [Tool System Design](design/DESIGN-tool-system.md) - Tool interface, registry, built-in tools, MCP integration
 - [Compaction Design](design/DESIGN-compaction.md) - LLM-based conversation summarization strategy
-- [Map-Evaluate Pattern](design/DESIGN-map-evaluate-pattern.md) - Isolated scoring for criteria matching workflows
 - [Account Management APIs](design/DESIGN-account-management-apis.md) - Anthropic/OpenAI admin API catalog
 
 ## Planning
@@ -24,6 +23,7 @@ Central navigation hub for all project documentation.
 - [Web Fetch Tool](planning/PLAN-web-fetch-tool.md) - Phase 1: URL content fetching (completed)
 - [Web Search Tool](planning/PLAN-web-search-tool.md) - Phase 2: Brave Search integration (completed)
 - [Browser Automation](planning/PLAN-browser-automation.md) - Phase 3: Playwright browser tool (planned)
+- [Map-Evaluate Pattern](planning/PLAN-map-evaluate-pattern.md) - Isolated scoring for criteria matching workflows (draft)
 - [Claude-Style Memory](planning/PLAN-claude-style-memory.md) - Session persistence, checkpoints, rewind
 - [WhatsApp Contact Names](planning/PLAN-whatsapp-contact-names.md) - Fix name resolution in WhatsApp MCP (completed)
 
@@ -34,6 +34,9 @@ Individual tool documentation:
 - [bash](design/tools/bash/README.md) - Shell command execution
 - [read_file](design/tools/read-file/README.md) - File reading (text + .docx)
 - [write_file](design/tools/write-file/README.md) - File writing
+- [append_file](design/tools/append-file/README.md) - File appending
+- [web_fetch](design/tools/web-fetch/README.md) - URL content fetching
+- [web_search](design/tools/web-search/README.md) - Web search (Brave)
 - [linkedin_jobs](design/tools/linkedin-jobs/README.md) - LinkedIn job search
 - [linkedin_job_detail](design/tools/linkedin-job-detail/README.md) - LinkedIn job details
 - [gmail_search](design/tools/gmail-search/README.md) - Gmail search
@@ -70,8 +73,7 @@ graph TD
     INDEX --> DESIGN1[Agent Loop Design]
     INDEX --> DESIGN2[Tool System Design]
     INDEX --> DESIGN3[Compaction Design]
-    INDEX --> DESIGN4[Map-Evaluate Pattern]
-    INDEX --> DESIGN5[Account Management APIs]
+    INDEX --> DESIGN4[Account Management APIs]
     INDEX --> PLAN[Planning Docs]
     INDEX --> TOOLS[Tool READMEs]
     INDEX --> EXAMPLES[Examples]

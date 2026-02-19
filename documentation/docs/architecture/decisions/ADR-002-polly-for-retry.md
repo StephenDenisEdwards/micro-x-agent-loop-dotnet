@@ -16,13 +16,13 @@ Options considered:
 
 ## Decision
 
-Use **Polly 8** (`ResiliencePipeline`) with exponential backoff for HTTP 429 retries. The pipeline is configured as a static singleton in `LlmClient` and wraps the streaming API call.
+Use **Polly 8** (`ResiliencePipeline`) with exponential backoff for HTTP 429 retries. The pipeline is defined in `RetryPipelineFactory` as a shared factory method and used by both `LlmClient` (streaming API calls) and `SummarizeCompactionStrategy` (compaction summarization). `McpToolProxy` uses a separate lighter pipeline (2 retries, 2s backoff) for MCP tool calls.
 
-Configuration:
+Configuration (main pipeline via `RetryPipelineFactory`):
 - Max retries: 5
 - Backoff: exponential starting at 10 seconds (10s, 20s, 40s, 80s, 160s)
-- Trigger: `HttpRequestException` with status code 429
-- User feedback: retry attempts logged to stderr
+- Triggers: `HttpRequestException` with status code 429, connection errors (status code `null`), `TaskCanceledException` (timeouts)
+- User feedback: retry attempts logged via Serilog
 
 ## Consequences
 

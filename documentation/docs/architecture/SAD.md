@@ -11,7 +11,7 @@ micro-x-agent-loop-dotnet is a minimal AI agent loop built with .NET 8 and the A
 ### Key Goals
 
 - Provide a simple, extensible agent loop for personal automation
-- Support file operations, shell commands, web browsing/search, job searching, email, calendar, and API usage reporting
+- Support file operations, shell commands, web browsing/search, job searching, email, calendar, contacts, and API usage reporting
 - Extend the tool surface dynamically via MCP server connections (stdio and HTTP transports)
 - Stream responses in real time for better user experience
 - Manage long conversations through configurable compaction strategies
@@ -52,6 +52,7 @@ graph LR
     Agent --> LinkedIn[LinkedIn Web]
     Agent --> Gmail[Gmail API]
     Agent --> Calendar[Google Calendar API]
+    Agent --> Contacts[Google People API]
     Agent --> MCP[MCP Servers]
 ```
 
@@ -66,6 +67,7 @@ The agent sits between the user and external services. The user provides natural
 | Brave Search API | HTTPS | Web search results |
 | Gmail API | HTTPS / OAuth2 | Email search, read, send |
 | Google Calendar API | HTTPS / OAuth2 | Calendar event listing, creation, retrieval |
+| Google People API | HTTPS / OAuth2 | Contact search, list, get, create, update, delete |
 | LinkedIn | HTTPS / HTML scraping | Job search and detail fetching |
 | Web (general) | HTTP / HTTPS | Fetch arbitrary URL content (HTML, JSON, text) |
 | MCP servers | stdio / HTTP | Dynamically discovered external tools |
@@ -85,7 +87,7 @@ The agent sits between the user and external services. The user provides natural
 | MCP integration | `McpManager` connects to configured servers; `McpToolProxy` adapts each MCP tool to `ITool` |
 | Conversation compaction | `ICompactionStrategy` interface with `SummarizeCompactionStrategy` (LLM-based summarization) and `NoneCompactionStrategy` (no-op) |
 | Structured logging | Serilog with configurable console (stderr) and file sinks via `LoggingConfig` |
-| Conditional tools | `WebSearchTool`, `AnthropicUsageTool`, Gmail, and Calendar tools are only registered when their respective API keys/credentials are present |
+| Conditional tools | `WebSearchTool`, `AnthropicUsageTool`, Gmail, Calendar, and Contacts tools are only registered when their respective API keys/credentials are present |
 
 ## 5. Building Block View
 
@@ -125,6 +127,12 @@ graph TD
         Cal1[CalendarListEventsTool]
         Cal2[CalendarCreateEventTool]
         Cal3[CalendarGetEventTool]
+        Con1[ContactsSearchTool]
+        Con2[ContactsListTool]
+        Con3[ContactsGetTool]
+        Con4[ContactsCreateTool]
+        Con5[ContactsUpdateTool]
+        Con6[ContactsDeleteTool]
     end
 
     subgraph "Web Abstraction"
@@ -160,7 +168,14 @@ graph TD
 | `BraveSearchProvider` | Brave Search API implementation of `ISearchProvider` |
 | `AnthropicUsageTool` | Queries Anthropic Admin API for usage, cost, and Claude Code reports; converts cost amounts from cents to USD |
 | `HtmlUtilities` | Shared HTML-to-plain-text conversion |
-| `GmailAuth` / `CalendarAuth` | OAuth2 flow and token caching for Google APIs |
+| `GoogleAuthBase<TService>` | Thread-safe generic base for Google API OAuth2 (see ADR-008) |
+| `GoogleToolBase` | Abstract base for all 12 Google tools with shared credentials and Serilog error handling |
+| `GmailAuth` / `CalendarAuth` / `ContactsAuth` | Concrete auth singletons extending `GoogleAuthBase<TService>` |
+| `ContactsFormatter` | Contact summary and detail formatting for People API responses |
+| `HttpClientFactory` | Two shared `HttpClient` instances (`Browser` and `Api`) for all tool HTTP calls |
+| `RetryPipelineFactory` | Shared Polly retry pipeline for all Anthropic API calls |
+| `ConfigLoader` | Loads and validates config from `appsettings.json` + `.env` into a typed `AppConfig` record |
+| `StartupDisplay` | Renders the startup banner (tool list, MCP servers, config summary) |
 | `GmailParser` | Base64url decoding, MIME parsing, text extraction |
 
 ## 6. Runtime View
@@ -274,7 +289,7 @@ If the LLM response is cut off with a `max_tokens` stop reason and no tool calls
 
 - API keys stored in `.env`, loaded at startup, never logged
 - `.env` is in `.gitignore`
-- Gmail/Calendar tokens stored in `.gmail-tokens/` (also gitignored)
+- Gmail/Calendar/Contacts tokens stored in `.gmail-tokens/`, `.calendar-tokens/`, `.contacts-tokens/` (all gitignored)
 - `BashTool` executes arbitrary commands (by design for agent autonomy)
 - `WebFetchTool` enforces a 2 MB response size limit and 30s timeout
 - MCP server environment variables are configured in `appsettings.json`, not in `.env`
@@ -303,20 +318,7 @@ Logging is managed by Serilog, configured through `LoggingConfig`:
 
 ### Configuration Reference
 
-| Setting | Type | Default | Purpose |
-|---------|------|---------|---------|
-| `Model` | string | `claude-sonnet-4-5-20250929` | Anthropic model ID |
-| `MaxTokens` | int | `8192` | Maximum tokens per LLM response |
-| `Temperature` | decimal | `1.0` | Sampling temperature |
-| `MaxToolResultChars` | int | `40000` | Truncation limit for tool output |
-| `MaxConversationMessages` | int | `50` | Hard cap on conversation history length |
-| `WorkingDirectory` | string | _(none)_ | Base directory for BashTool, ReadFileTool, WriteFileTool, AppendFileTool |
-| `CompactionStrategy` | string | `none` | Compaction strategy: `none` or `summarize` |
-| `CompactionThresholdTokens` | int | `80000` | Estimated token count that triggers compaction |
-| `ProtectedTailMessages` | int | `6` | Number of recent messages excluded from compaction |
-| `LogLevel` | string | `Information` | Global minimum log level |
-| `LogConsumers` | array | _(default sinks)_ | Array of sink configs: `{ "type": "console"\|"file", "level": "...", "path": "..." }` |
-| `McpServers` | object | _(none)_ | Map of server name to `McpServerConfig` (transport, command, args, env, url) |
+See [Configuration Reference](../operations/appsettings.md) for the full settings table with types, defaults, and detailed descriptions.
 
 ### MCP Integration
 
@@ -339,6 +341,7 @@ Several tools are only registered when their required credentials are available:
 | `AnthropicUsageTool` | `ANTHROPIC_ADMIN_API_KEY` |
 | Gmail tools (search, read, send) | `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` |
 | Calendar tools (list, create, get) | `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` |
+| Contacts tools (search, list, get, create, update, delete) | `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` |
 
 Tools that are always registered: `BashTool`, `ReadFileTool`, `WriteFileTool`, `AppendFileTool`, `LinkedInJobsTool`, `LinkedInJobDetailTool`, `WebFetchTool`.
 
@@ -354,11 +357,8 @@ See [Architecture Decision Records](decisions/README.md) for the full index.
 | [ADR-004](decisions/ADR-004-mcp-integration.md) | Model Context Protocol (MCP) integration | Accepted |
 | [ADR-005](decisions/ADR-005-serilog-for-logging.md) | Serilog for structured logging | Accepted |
 | [ADR-006](decisions/ADR-006-separate-repos-for-third-party-mcp-servers.md) | Separate repos for third-party MCP servers | Accepted |
-
-Key architectural decisions not yet captured in ADRs:
-
-- **ISearchProvider abstraction**: Web search is accessed through an interface, making it straightforward to swap Brave for another search provider without changing the tool layer.
-- **ICompactionStrategy abstraction**: Compaction is pluggable. The `SummarizeCompactionStrategy` uses the same LLM to summarize older messages, while `NoneCompactionStrategy` is a no-op fallback.
+| [ADR-007](decisions/ADR-007-google-contacts-built-in-tools.md) | Google Contacts as built-in tools | Accepted |
+| [ADR-008](decisions/ADR-008-architecture-refactoring.md) | Architecture refactoring — base classes, shared infrastructure | Accepted |
 
 ## 9. Risks and Technical Debt
 

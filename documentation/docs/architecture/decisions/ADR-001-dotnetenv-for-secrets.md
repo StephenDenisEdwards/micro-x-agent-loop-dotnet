@@ -30,5 +30,5 @@ Non-secret configuration (model, max tokens, temperature, paths) lives separatel
 
 **Harder:**
 - No built-in rotation or encryption (acceptable for personal/development use)
-- Must remember to create `.env` manually on new machines (no `.env.example` checked in)
+- Must remember to create `.env` manually on new machines (a `.env.example` template is checked in to help)
 - Not suitable for production deployment without additional secret management

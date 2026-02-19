@@ -19,7 +19,7 @@ Delete a Google Contact by resource name. This action cannot be undone.
 
 - Source: `src/MicroXAgentLoop/Tools/Contacts/ContactsDeleteTool.cs`
 - Uses `Google.Apis.PeopleService.v1` NuGet package
-- OAuth2 via `ContactsAuth.GetContactsServiceAsync()`
+- OAuth2 via `ContactsAuth.Instance.GetServiceAsync()` (extends `GoogleAuthBase<PeopleServiceService>`)
 
 ## Example
 

@@ -29,7 +29,7 @@ Create a new Google Contact.
 - Uses `Google.Apis.PeopleService.v1` NuGet package
 - Builds a `Person` object from input fields with null checks
 - Uses `ContactsFormatter.FormatContactDetail()` for the response
-- OAuth2 via `ContactsAuth.GetContactsServiceAsync()`
+- OAuth2 via `ContactsAuth.Instance.GetServiceAsync()` (extends `GoogleAuthBase<PeopleServiceService>`)
 
 ## Example
 

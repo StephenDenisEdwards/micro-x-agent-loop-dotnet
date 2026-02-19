@@ -32,7 +32,7 @@ List Google Contacts with pagination and sort options.
 - Source: `src/MicroXAgentLoop/Tools/Contacts/ContactsListTool.cs`
 - Uses `Google.Apis.PeopleService.v1` NuGet package
 - PersonFields: `names,emailAddresses,phoneNumbers`
-- OAuth2 via `ContactsAuth.GetContactsServiceAsync()`
+- OAuth2 via `ContactsAuth.Instance.GetServiceAsync()` (extends `GoogleAuthBase<PeopleServiceService>`)
 
 ## Example
 

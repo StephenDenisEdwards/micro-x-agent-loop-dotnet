@@ -19,7 +19,7 @@ Get full details of a Google Calendar event by its event ID.
 
 - Source: `src/MicroXAgentLoop/Tools/Calendar/CalendarGetEventTool.cs`
 - Uses `Google.Apis.Calendar.v3` NuGet package for Calendar API access
-- OAuth2 via `CalendarAuth.GetCalendarServiceAsync()`
+- OAuth2 via `CalendarAuth.Instance.GetServiceAsync()` (extends `GoogleAuthBase<CalendarService>`)
 
 ## Example
 

@@ -348,9 +348,8 @@ Full documentation lives in [`documentation/docs/`](documentation/docs/index.md)
 - [**Agent Loop Design**](documentation/docs/design/DESIGN-agent-loop.md) — core loop, parallel execution, streaming, compaction
 - [**Tool System Design**](documentation/docs/design/DESIGN-tool-system.md) — ITool interface, registry, built-in tools, MCP integration
 - [**Compaction Design**](documentation/docs/design/DESIGN-compaction.md) — LLM-based conversation summarization strategy
-- [**Map-Evaluate Pattern**](documentation/docs/design/DESIGN-map-evaluate-pattern.md) — isolated scoring for criteria matching workflows
 - [**Account Management APIs**](documentation/docs/design/DESIGN-account-management-apis.md) — Anthropic/OpenAI admin API catalog
-- [**Planning Documents**](documentation/docs/planning/) — web fetch, web search, browser automation, memory, WhatsApp
+- [**Planning Documents**](documentation/docs/planning/) — web fetch, web search, browser automation, memory, WhatsApp, map-evaluate
 - [**Tool READMEs**](documentation/docs/design/tools/) — individual tool documentation
 - [**Example Prompts**](documentation/docs/examples/README.md) — working prompt templates for common tasks
 - [**Getting Started**](documentation/docs/operations/getting-started.md) — setup, prerequisites, first run

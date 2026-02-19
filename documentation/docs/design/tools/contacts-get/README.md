@@ -21,7 +21,7 @@ Get full details of a Google Contact by resource name.
 - Uses `Google.Apis.PeopleService.v1` NuGet package
 - PersonFields: `names,emailAddresses,phoneNumbers,addresses,organizations,biographies`
 - Uses `ContactsFormatter.FormatContactDetail()` for full output
-- OAuth2 via `ContactsAuth.GetContactsServiceAsync()`
+- OAuth2 via `ContactsAuth.Instance.GetServiceAsync()` (extends `GoogleAuthBase<PeopleServiceService>`)
 
 ## Example
 

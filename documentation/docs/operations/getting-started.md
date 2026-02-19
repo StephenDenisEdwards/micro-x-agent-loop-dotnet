@@ -4,7 +4,7 @@
 
 - [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) or later
 - An [Anthropic API key](https://console.anthropic.com/)
-- (Optional) Google OAuth credentials for Gmail/Calendar tools
+- (Optional) Google OAuth credentials for Gmail, Calendar, and Contacts tools
 - (Optional) [Brave Search API key](https://brave.com/search/api/) for web search
 - (Optional) [Anthropic Admin API key](https://console.anthropic.com/) for usage reports
 
@@ -30,7 +30,7 @@ BRAVE_API_KEY=your-brave-api-key-here
 ```
 
 Only `ANTHROPIC_API_KEY` is required. The other keys are optional:
-- **Google credentials** — if omitted, Gmail and Calendar tools are not registered
+- **Google credentials** — if omitted, Gmail, Calendar, and Contacts tools are not registered
 - **`ANTHROPIC_ADMIN_API_KEY`** — if omitted, the `anthropic_usage` tool is not registered
 - **`BRAVE_API_KEY`** — if omitted, the `web_search` tool is not registered
 
@@ -95,6 +95,12 @@ Tools:
   - calendar_list_events
   - calendar_create_event
   - calendar_get_event
+  - contacts_search
+  - contacts_list
+  - contacts_get
+  - contacts_create
+  - contacts_update
+  - contacts_delete
   - anthropic_usage
   - web_search
 MCP servers:
@@ -131,6 +137,14 @@ The first time you use a Gmail or Calendar tool, a browser window will open for 
 you> Search my Gmail for unread emails from the last 3 days
 ```
 
+### Contacts First Use
+
+The first time you use a Contacts tool, a browser window will open for Google OAuth sign-in (the People API uses separate tokens from Gmail/Calendar). Tokens are cached in `.contacts-tokens/`.
+
+```
+you> Search my contacts for John Smith
+```
+
 ### Web Search First Use
 
 If `BRAVE_API_KEY` is configured, you can search the web:
@@ -165,10 +179,13 @@ micro-x-agent-loop-dotnet/
 └── src/MicroXAgentLoop/
     ├── .env                           # Secrets (not in git)
     ├── appsettings.json               # App configuration
-    ├── Program.cs                     # Entry point and REPL
+    ├── Program.cs                     # Entry point (thin composition root)
+    ├── ConfigLoader.cs                # Config loading from appsettings.json + .env
+    ├── StartupDisplay.cs              # Startup banner rendering
     ├── Agent.cs                       # Agent loop orchestrator
     ├── AgentConfig.cs                 # Configuration record
-    ├── LlmClient.cs                  # Anthropic API + streaming + Polly
+    ├── LlmClient.cs                  # Anthropic API streaming
+    ├── RetryPipelineFactory.cs        # Shared Polly retry pipeline
     ├── SystemPrompt.cs               # System prompt text
     ├── ITool.cs                       # Tool interface
     ├── ICompactionStrategy.cs         # Compaction strategy interface
@@ -180,6 +197,9 @@ micro-x-agent-loop-dotnet/
     │   └── McpToolProxy.cs            # ITool adapter for MCP tools
     └── Tools/
         ├── ToolRegistry.cs            # Tool assembly and registration
+        ├── GoogleAuthBase.cs          # Thread-safe generic Google OAuth2 base
+        ├── GoogleToolBase.cs          # Abstract base for all Google tools
+        ├── HttpClientFactory.cs       # Shared HttpClient instances (Browser + Api)
         ├── BashTool.cs                # Shell command execution
         ├── ReadFileTool.cs            # File reading (.txt, .docx)
         ├── WriteFileTool.cs           # File writing
@@ -201,9 +221,18 @@ micro-x-agent-loop-dotnet/
         │   ├── GmailSearchTool.cs     # Email search
         │   ├── GmailReadTool.cs       # Email reading
         │   └── GmailSendTool.cs       # Email sending
-        └── Calendar/
-            ├── CalendarAuth.cs            # OAuth2 flow (shared with Gmail)
-            ├── CalendarListEventsTool.cs   # List calendar events
-            ├── CalendarCreateEventTool.cs  # Create calendar events
-            └── CalendarGetEventTool.cs     # Get event details
+        ├── Calendar/
+        │   ├── CalendarAuth.cs            # OAuth2 (extends GoogleAuthBase)
+        │   ├── CalendarListEventsTool.cs   # List calendar events
+        │   ├── CalendarCreateEventTool.cs  # Create calendar events
+        │   └── CalendarGetEventTool.cs     # Get event details
+        └── Contacts/
+            ├── ContactsAuth.cs            # OAuth2 (extends GoogleAuthBase)
+            ├── ContactsFormatter.cs       # Contact summary/detail formatting
+            ├── ContactsSearchTool.cs      # Search contacts
+            ├── ContactsListTool.cs        # List contacts
+            ├── ContactsGetTool.cs         # Get contact details
+            ├── ContactsCreateTool.cs      # Create contact
+            ├── ContactsUpdateTool.cs      # Update contact
+            └── ContactsDeleteTool.cs      # Delete contact
 ```
