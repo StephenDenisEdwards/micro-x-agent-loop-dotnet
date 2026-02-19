@@ -6,11 +6,11 @@ namespace MicroXAgentLoop.Tools;
 
 public class ReadFileTool : ITool
 {
-    private readonly string? _documentsDirectory;
+    private readonly string? _workingDirectory;
 
-    public ReadFileTool(string? documentsDirectory = null)
+    public ReadFileTool(string? workingDirectory = null)
     {
-        _documentsDirectory = documentsDirectory;
+        _workingDirectory = workingDirectory;
     }
 
     public string Name => "read_file";
@@ -36,8 +36,8 @@ public class ReadFileTool : ITool
         var filePath = input["path"]!.GetValue<string>();
         try
         {
-            if (!Path.IsPathRooted(filePath) && !File.Exists(filePath))
-                filePath = ResolveRelativePath(filePath) ?? filePath;
+            if (!Path.IsPathRooted(filePath) && _workingDirectory is not null)
+                filePath = Path.Combine(_workingDirectory, filePath);
 
             if (Path.GetExtension(filePath).Equals(".docx", StringComparison.OrdinalIgnoreCase))
             {
@@ -50,47 +50,6 @@ public class ReadFileTool : ITool
         {
             return $"Error reading file: {ex.Message}";
         }
-    }
-
-    /// <summary>
-    /// Walks up from CWD to the repo root, trying to resolve a relative path at each level.
-    /// Falls back to the configured documents directory if set.
-    /// </summary>
-    private string? ResolveRelativePath(string relativePath)
-    {
-        var dir = Directory.GetCurrentDirectory();
-        while (dir is not null)
-        {
-            var candidate = Path.Combine(dir, relativePath);
-            if (File.Exists(candidate))
-                return candidate;
-
-            // Stop at repo root
-            if (Directory.Exists(Path.Combine(dir, ".git")))
-                break;
-
-            dir = Directory.GetParent(dir)?.FullName;
-        }
-
-        // Try the configured documents directory as a fallback
-        if (_documentsDirectory is not null)
-        {
-            var docsBase = Path.IsPathRooted(_documentsDirectory)
-                ? _documentsDirectory
-                : Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), _documentsDirectory));
-
-            var candidate = Path.Combine(docsBase, relativePath);
-            if (File.Exists(candidate))
-                return candidate;
-
-            // Also try just the filename in case the relative path includes a directory prefix
-            var fileName = Path.GetFileName(relativePath);
-            candidate = Path.Combine(docsBase, fileName);
-            if (File.Exists(candidate))
-                return candidate;
-        }
-
-        return null;
     }
 
     private static string ExtractDocxText(string filePath)

@@ -4,11 +4,11 @@ namespace MicroXAgentLoop.Tools;
 
 public class AppendFileTool : ITool
 {
-    private readonly string? _documentsDirectory;
+    private readonly string? _workingDirectory;
 
-    public AppendFileTool(string? documentsDirectory = null)
+    public AppendFileTool(string? workingDirectory = null)
     {
-        _documentsDirectory = documentsDirectory;
+        _workingDirectory = workingDirectory;
     }
 
     public string Name => "append_file";
@@ -42,8 +42,8 @@ public class AppendFileTool : ITool
         var content = input["content"]!.GetValue<string>();
         try
         {
-            if (!Path.IsPathRooted(path) && _documentsDirectory is not null)
-                path = Path.Combine(_documentsDirectory, path);
+            if (!Path.IsPathRooted(path) && _workingDirectory is not null)
+                path = Path.Combine(_workingDirectory, path);
 
             if (!File.Exists(path))
                 return $"Error: file does not exist: {path}. Use write_file to create it first.";

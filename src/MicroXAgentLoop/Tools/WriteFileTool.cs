@@ -4,6 +4,13 @@ namespace MicroXAgentLoop.Tools;
 
 public class WriteFileTool : ITool
 {
+    private readonly string? _workingDirectory;
+
+    public WriteFileTool(string? workingDirectory = null)
+    {
+        _workingDirectory = workingDirectory;
+    }
+
     public string Name => "write_file";
     public string Description => "Write content to a file, creating it if it doesn't exist.";
 
@@ -30,6 +37,9 @@ public class WriteFileTool : ITool
         var content = input["content"]!.GetValue<string>();
         try
         {
+            if (!Path.IsPathRooted(path) && _workingDirectory is not null)
+                path = Path.Combine(_workingDirectory, path);
+
             var dir = Path.GetDirectoryName(path);
             if (!string.IsNullOrEmpty(dir))
                 Directory.CreateDirectory(dir);

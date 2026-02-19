@@ -5,6 +5,13 @@ namespace MicroXAgentLoop.Tools;
 
 public class BashTool : ITool
 {
+    private readonly string? _workingDirectory;
+
+    public BashTool(string? workingDirectory = null)
+    {
+        _workingDirectory = workingDirectory;
+    }
+
     public string Name => "bash";
     public string Description => "Execute a bash command and return its output (stdout + stderr).";
 
@@ -39,6 +46,7 @@ public class BashTool : ITool
                 RedirectStandardError = true,
                 UseShellExecute = false,
                 CreateNoWindow = true,
+                WorkingDirectory = _workingDirectory ?? "",
             };
 
             process.Start();

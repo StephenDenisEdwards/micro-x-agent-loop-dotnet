@@ -68,11 +68,20 @@ public static class LlmClient
                 Delay = TimeSpan.FromSeconds(10),
                 ShouldHandle = new PredicateBuilder()
                     .Handle<HttpRequestException>(ex =>
-                        ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests),
+                        ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+                    .Handle<HttpRequestException>(ex => ex.StatusCode is null) // connection error
+                    .Handle<TaskCanceledException>(), // timeout
                 OnRetry = args =>
                 {
+                    var reason = args.Outcome.Exception switch
+                    {
+                        HttpRequestException { StatusCode: System.Net.HttpStatusCode.TooManyRequests } => "Rate limited",
+                        HttpRequestException => "Connection error",
+                        TaskCanceledException => "Request timed out",
+                        _ => args.Outcome.Exception?.GetType().Name ?? "Unknown error",
+                    };
                     Console.Error.WriteLine(
-                        $"Rate limited. Retrying in {args.RetryDelay.TotalSeconds:F0}s " +
+                        $"{reason}. Retrying in {args.RetryDelay.TotalSeconds:F0}s " +
                         $"(attempt {args.AttemptNumber + 1}/5)...");
                     return ValueTask.CompletedTask;
                 },

@@ -27,3 +27,5 @@ What becomes easier or more difficult to do because of this change?
 | [ADR-001](ADR-001-dotnetenv-for-secrets.md) | DotNetEnv for secrets management | Accepted |
 | [ADR-002](ADR-002-polly-for-retry.md) | Polly for API retry resilience | Accepted |
 | [ADR-003](ADR-003-streaming-responses.md) | Streaming responses via SSE | Accepted |
+| [ADR-004](ADR-004-mcp-integration.md) | Model Context Protocol (MCP) integration | Accepted |
+| [ADR-005](ADR-005-serilog-for-logging.md) | Serilog for structured logging | Accepted |

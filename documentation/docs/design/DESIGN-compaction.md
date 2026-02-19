@@ -2,11 +2,11 @@
 
 ## Status
 
-**Proposed** — not yet implemented. This document captures the design for future implementation.
+**Implemented** — shipped in the `SummarizeCompactionStrategy` class, configurable via `appsettings.json`.
 
 ## Problem
 
-The agent loop currently manages context with two blunt mechanisms:
+Before compaction was implemented, the agent loop managed context with two blunt mechanisms:
 
 1. **Per-result truncation** — `TruncateToolResult()` clips individual tool outputs at `MaxToolResultChars` (40,000 chars). This happens at ingestion time and is irreversible.
 2. **History trimming** — `TrimConversationHistory()` does a hard `RemoveRange(0, removeCount)` when `_messages.Count > MaxConversationMessages` (50). No summarization, no context preservation — old messages simply vanish.
@@ -243,11 +243,24 @@ On failure:
   Warning: Compaction failed: {error}. Falling back to history trimming.
 ```
 
-## Implementation Sequence
+## Implementation
 
-1. `AgentConfig.cs` — Add 3 new record parameters (smallest change, no dependencies)
-2. `Compactor.cs` — Create new file with `EstimateTokens` and `CompactAsync` (can be tested independently)
-3. `Agent.cs` — Add `MaybeCompactAsync()`, `RebuildMessagesWithSummary()`, update `RunAsync()` call sites
-4. `Program.cs` — Wire up config parsing for 3 new settings
-5. `appsettings.json` — Add default values
-6. Update `DESIGN-agent-loop.md` — Add compaction section to the existing design doc
+The design was implemented using the strategy pattern rather than a static `Compactor` class:
+
+| File | Description |
+|------|-------------|
+| `ICompactionStrategy.cs` | Interface with single `MaybeCompactAsync(List<Message>)` method |
+| `SummarizeCompactionStrategy.cs` | Full implementation with token estimation, boundary adjustment, LLM summarization, and message reconstruction |
+| `NoneCompactionStrategy.cs` | No-op implementation for backward compatibility |
+| `AgentConfig.cs` | Added `CompactionStrategy` parameter |
+| `Agent.cs` | Added `MaybeCompactAsync()` called after user messages and tool results |
+| `Program.cs` | Parses `CompactionStrategy`, `CompactionThresholdTokens`, `ProtectedTailMessages` from config |
+
+Configuration in `appsettings.json`:
+```json
+{
+  "CompactionStrategy": "summarize",
+  "CompactionThresholdTokens": 80000,
+  "ProtectedTailMessages": 6
+}
+```

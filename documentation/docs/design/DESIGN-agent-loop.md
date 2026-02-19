@@ -4,13 +4,15 @@
 
 The agent loop is the core runtime cycle of the application. It manages the streaming, tool-augmented conversation between the user, Claude (via the Anthropic API), and a set of registered tools.
 
-Three files collaborate to implement the loop:
+Key files collaborate to implement the loop:
 
 | File | Responsibility |
 |------|----------------|
-| `Program.cs` | REPL shell — reads user input, prints the `assistant>` prefix, catches top-level exceptions |
-| `Agent.cs` | Orchestrator — manages conversation history, dispatches tool calls, enforces safety limits |
+| `Program.cs` | REPL shell — reads user input, connects MCP, sets up logging, catches top-level exceptions |
+| `Agent.cs` | Orchestrator — manages conversation history, dispatches tool calls, enforces safety limits, triggers compaction |
 | `LlmClient.cs` | API client — streams responses via SSE, retries on rate limits with Polly |
+| `LoggingConfig.cs` | Configures Serilog sinks (console + file) from settings |
+| `Mcp/McpManager.cs` | Connects to MCP servers at startup, discovers tools |
 
 ## Flow
 
@@ -20,9 +22,12 @@ User types prompt
        ▼
 ┌─────────────────────────────────┐
 │  1. Add user message to history │
-│  2. Trim history if over limit  │
-│  3. Stream request to Claude    │◄──────────────────┐
-│  4. Print text tokens to stdout │                    │
+│  2. Maybe compact (summarize    │
+│     old messages if over token  │
+│     threshold)                  │
+│  3. Trim history if over limit  │
+│  4. Stream request to Claude    │◄──────────────────┐
+│  5. Print text tokens to stdout │                    │
 │     in real time                │                    │
 └──────────┬──────────────────────┘                    │
            │                                           │
@@ -32,14 +37,13 @@ User types prompt
            │ Yes                                       │
            ▼                                           │
 ┌──────────────────────────────┐                       │
-│  5. Execute ALL tool calls   │                       │
+│  6. Execute ALL tool calls   │                       │
 │     in parallel              │                       │
-│  6. Truncate oversized       │                       │
+│  7. Truncate oversized       │                       │
 │     results                  │                       │
-│  7. Add tool results to      │                       │
+│  8. Add tool results to      │                       │
 │     history                  │                       │
-│  8. Trim history if over     │                       │
-│     limit                    │                       │
+│  9. Maybe compact + trim     │                       │
 └──────────┬───────────────────┘                       │
            │                                           │
            └───── Loop back ───────────────────────────┘
@@ -49,12 +53,13 @@ User types prompt
 
 1. **User input** — `Program.cs` reads a line from stdin and calls `agent.RunAsync(trimmed)`.
 2. **Add to history** — The user message is wrapped in `Message(RoleType.User, ...)` and appended to `_messages`.
-3. **Trim history** — If `_messages.Count` exceeds `MaxConversationMessages`, the oldest messages are removed from the front. A warning is printed to stderr.
-4. **Stream to Claude** — `LlmClient.StreamChatAsync` sends the full message list (system prompt + history + tool definitions) to the Anthropic API with `Stream = true`. Text deltas are written to stdout as they arrive via SSE, giving the user real-time feedback.
-5. **Inspect response** — The assembled `Message` is added to history. If it contains no `ToolUseContent` blocks, the loop exits and control returns to the REPL.
-6. **Execute tools** — If tool-use blocks are present, `ExecuteToolsAsync` runs all of them concurrently via `Task.WhenAll`. Each tool is looked up in `_toolMap` by name and called with the JSON input Claude provided.
-7. **Return results** — Tool results (or error messages) are wrapped in `ToolResultContent` and added to history as a user-role message (per the Anthropic API contract).
-8. **Repeat** — The loop goes back to step 3, sending the updated history (now including the tool results) to Claude for the next turn.
+3. **Maybe compact** — `MaybeCompactAsync()` checks if estimated tokens exceed the threshold. If so, the `SummarizeCompactionStrategy` summarizes old messages into a concise narrative, preserving the first user message and the most recent N messages. See [Compaction Design](DESIGN-compaction.md) for details.
+4. **Trim history** — If `_messages.Count` still exceeds `MaxConversationMessages` after compaction, the oldest messages are removed from the front. A warning is printed to stderr.
+5. **Stream to Claude** — `LlmClient.StreamChatAsync` sends the full message list (system prompt + history + tool definitions) to the Anthropic API with `Stream = true`. Text deltas are written to stdout as they arrive via SSE, giving the user real-time feedback.
+6. **Inspect response** — The assembled `Message` is added to history. If it contains no `ToolUseContent` blocks, the loop exits and control returns to the REPL.
+7. **Execute tools** — If tool-use blocks are present, `ExecuteToolsAsync` runs all of them concurrently via `Task.WhenAll`. Each tool is looked up in `_toolMap` by name and called with the JSON input Claude provided. This includes both built-in tools and MCP tools (via `McpToolProxy`).
+8. **Return results** — Tool results (or error messages) are wrapped in `ToolResultContent` and added to history as a user-role message (per the Anthropic API contract).
+9. **Compact + repeat** — `MaybeCompactAsync()` runs again (tool results can be large), then the loop goes back to step 5.
 
 This loop continues until Claude produces a response with no tool-use blocks, at which point the conversation turn is complete.
 
@@ -203,13 +208,18 @@ public record AgentConfig(
     int MaxTokens,                         // Max response tokens (default: 8192)
     decimal Temperature,                   // Sampling temperature (default: 1.0)
     string ApiKey,                         // Anthropic API key
-    IReadOnlyList<ITool> Tools,            // Registered tools
+    IReadOnlyList<ITool> Tools,            // Registered tools (built-in + MCP)
     string SystemPrompt,                   // System prompt text
     int MaxToolResultChars = 40_000,       // Truncation limit per tool result
-    int MaxConversationMessages = 50);     // History trimming limit
+    int MaxConversationMessages = 50,      // History trimming limit
+    ICompactionStrategy? CompactionStrategy = null);  // Context compaction
 ```
 
 Settings are loaded from `appsettings.json` with code-level defaults as fallbacks. Secrets come from `.env`. See [appsettings.md](../operations/appsettings.md) for the full reference.
+
+### Conversation Compaction
+
+When `CompactionStrategy` is set to `"summarize"`, the `SummarizeCompactionStrategy` monitors estimated token usage and summarizes old messages when the threshold is exceeded. This preserves key facts (decisions, URLs, scores) while freeing context budget. The first user message and the most recent N messages are always protected. See [Compaction Design](DESIGN-compaction.md) for the full algorithm.
 
 ## Design Rationale
 
