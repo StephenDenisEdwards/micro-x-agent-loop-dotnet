@@ -3,7 +3,6 @@ using System.Text.Json.Nodes;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using Polly;
-using Polly.Retry;
 using Serilog;
 
 namespace MicroXAgentLoop.Mcp;
@@ -13,29 +12,7 @@ namespace MicroXAgentLoop.Mcp;
 /// </summary>
 public class McpToolProxy : ITool
 {
-    private const int MaxRetryAttempts = 2;
-
-    private static readonly ResiliencePipeline RetryPipeline =
-        new ResiliencePipelineBuilder()
-            .AddRetry(new RetryStrategyOptions
-            {
-                MaxRetryAttempts = MaxRetryAttempts,
-                BackoffType = DelayBackoffType.Exponential,
-                Delay = TimeSpan.FromSeconds(2),
-                ShouldHandle = new PredicateBuilder()
-                    .Handle<HttpRequestException>()
-                    .Handle<TaskCanceledException>()
-                    .Handle<TimeoutException>(),
-                OnRetry = args =>
-                {
-                    Log.Warning(
-                        "MCP tool call failed: {Error}. Retrying in {Delay}s (attempt {Attempt}/{Max})...",
-                        args.Outcome.Exception?.Message, args.RetryDelay.TotalSeconds,
-                        args.AttemptNumber + 1, MaxRetryAttempts);
-                    return ValueTask.CompletedTask;
-                },
-            })
-            .Build();
+    private static readonly ResiliencePipeline RetryPipeline = RetryPipelineFactory.CreateForMcp();
 
     private readonly string _serverName;
     private readonly McpClientTool _mcpTool;
@@ -56,7 +33,7 @@ public class McpToolProxy : ITool
 
     public JsonNode InputSchema => _inputSchema;
 
-    public async Task<string> ExecuteAsync(JsonNode input)
+    public async Task<string> ExecuteAsync(JsonNode input, CancellationToken ct = default)
     {
         Log.Debug("MCP tool call: {Name} | input: {Input}", Name, input.ToJsonString());
 
@@ -71,9 +48,9 @@ public class McpToolProxy : ITool
             }
         }
 
-        var output = await RetryPipeline.ExecuteAsync(async _ =>
+        var output = await RetryPipeline.ExecuteAsync(async token =>
         {
-            var result = await _client.CallToolAsync(_mcpTool.Name, arguments);
+            var result = await _client.CallToolAsync(_mcpTool.Name, arguments, cancellationToken: token);
 
             Log.Debug(
                 "MCP raw response: {Name} | isError={IsError} | blocks={Count}",
@@ -93,7 +70,7 @@ public class McpToolProxy : ITool
             }
 
             return text;
-        });
+        }, ct);
 
         Log.Debug("MCP tool result: {Name} | chars={Chars}", Name, output.Length);
         return output;

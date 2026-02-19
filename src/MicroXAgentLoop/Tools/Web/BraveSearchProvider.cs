@@ -20,7 +20,7 @@ public class BraveSearchProvider : ISearchProvider
 
     public async Task<List<SearchResult>> SearchAsync(string query, int count)
     {
-        var request = new HttpRequestMessage(HttpMethod.Get,
+        using var request = new HttpRequestMessage(HttpMethod.Get,
             $"{BraveSearchUrl}?q={Uri.EscapeDataString(query)}&count={count}");
         request.Headers.Add("X-Subscription-Token", _apiKey);
         request.Headers.Add("Accept", "application/json");

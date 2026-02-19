@@ -37,7 +37,7 @@ public class WebSearchTool : ITool
         }
         """)!;
 
-    public async Task<string> ExecuteAsync(JsonNode input)
+    public async Task<string> ExecuteAsync(JsonNode input, CancellationToken ct = default)
     {
         var query = input["query"]?.GetValue<string>()?.Trim() ?? "";
         if (string.IsNullOrEmpty(query))

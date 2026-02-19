@@ -72,7 +72,7 @@ public class AnthropicUsageTool : ITool
         }
         """)!;
 
-    public async Task<string> ExecuteAsync(JsonNode input)
+    public async Task<string> ExecuteAsync(JsonNode input, CancellationToken ct = default)
     {
         try
         {
@@ -106,7 +106,7 @@ public class AnthropicUsageTool : ITool
             request.Headers.Add("x-api-key", _adminKey);
             request.Headers.Add("anthropic-version", "2023-06-01");
 
-            var response = await Http.SendAsync(request);
+            var response = await Http.SendAsync(request, ct);
 
             if (!response.IsSuccessStatusCode)
             {

@@ -69,7 +69,7 @@ public class SummarizeCompactionStrategy : ICompactionStrategy
         _protectedTailMessages = protectedTailMessages;
     }
 
-    public async Task<List<Message>> MaybeCompactAsync(List<Message> messages)
+    public async Task<List<Message>> MaybeCompactAsync(List<Message> messages, CancellationToken ct = default)
     {
         var estimated = EstimateTokens(messages);
         if (estimated < _thresholdTokens)
@@ -98,7 +98,7 @@ public class SummarizeCompactionStrategy : ICompactionStrategy
         string summary;
         try
         {
-            summary = await SummarizeAsync(compactable);
+            summary = await SummarizeAsync(compactable, ct);
         }
         catch (Exception ex)
         {
@@ -191,7 +191,7 @@ public class SummarizeCompactionStrategy : ICompactionStrategy
         return text[..ToolResultHeadChars] + "\n[...truncated...]\n" + text[^ToolResultTailChars..];
     }
 
-    private async Task<string> SummarizeAsync(List<Message> compactable)
+    private async Task<string> SummarizeAsync(List<Message> compactable, CancellationToken ct)
     {
         var formatted = FormatForSummarization(compactable);
 
@@ -206,7 +206,7 @@ public class SummarizeCompactionStrategy : ICompactionStrategy
         }
 
         MessageResponse? response = null;
-        await RetryPipeline.ExecuteAsync(async _ =>
+        await RetryPipeline.ExecuteAsync(async token =>
         {
             var parameters = new MessageParameters
             {
@@ -216,10 +216,13 @@ public class SummarizeCompactionStrategy : ICompactionStrategy
                 Messages = [new Message(RoleType.User, SummarizePrompt + formatted)],
             };
 
-            response = await _client.Messages.GetClaudeMessageAsync(parameters);
-        });
+            response = await _client.Messages.GetClaudeMessageAsync(parameters, token);
+        }, ct);
 
-        return response!.Content.OfType<TextContent>().First().Text!;
+        if (response is null)
+            throw new InvalidOperationException("Summarization API returned no response after retries.");
+
+        return response.Content.OfType<TextContent>().First().Text!;
     }
 
     private static int AdjustBoundary(List<Message> messages, int start, int end)

@@ -2,24 +2,19 @@ using System.Text.Json.Nodes;
 
 namespace MicroXAgentLoop.Tools;
 
-public class AppendFileTool : ITool
+public class AppendFileTool : FileToolBase
 {
-    private readonly string? _workingDirectory;
+    public AppendFileTool(string? workingDirectory = null) : base(workingDirectory) { }
 
-    public AppendFileTool(string? workingDirectory = null)
-    {
-        _workingDirectory = workingDirectory;
-    }
+    public override string Name => "append_file";
 
-    public string Name => "append_file";
-
-    public string Description =>
+    public override string Description =>
         "Append content to the end of a file. " +
         "The file must already exist. " +
         "Use this to write large files in stages — " +
         "create the file with write_file first, then append additional sections.";
 
-    public JsonNode InputSchema => JsonNode.Parse("""
+    public override JsonNode InputSchema => JsonNode.Parse("""
         {
             "type": "object",
             "properties": {
@@ -36,19 +31,18 @@ public class AppendFileTool : ITool
         }
         """)!;
 
-    public async Task<string> ExecuteAsync(JsonNode input)
+    public override async Task<string> ExecuteAsync(JsonNode input, CancellationToken ct = default)
     {
         var path = input["path"]!.GetValue<string>();
         var content = input["content"]!.GetValue<string>();
         try
         {
-            if (!Path.IsPathRooted(path) && _workingDirectory is not null)
-                path = Path.Combine(_workingDirectory, path);
+            path = ResolvePath(path);
 
             if (!File.Exists(path))
                 return $"Error: file does not exist: {path}. Use write_file to create it first.";
 
-            await File.AppendAllTextAsync(path, content);
+            await File.AppendAllTextAsync(path, content, ct);
             return $"Successfully appended to {path}";
         }
         catch (Exception ex)

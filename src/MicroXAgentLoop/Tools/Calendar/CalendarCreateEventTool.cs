@@ -51,7 +51,7 @@ public class CalendarCreateEventTool : GoogleToolBase
         }
         """)!;
 
-    public override async Task<string> ExecuteAsync(JsonNode input)
+    public override async Task<string> ExecuteAsync(JsonNode input, CancellationToken ct = default)
     {
         try
         {

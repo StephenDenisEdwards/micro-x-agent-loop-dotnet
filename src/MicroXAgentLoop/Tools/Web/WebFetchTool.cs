@@ -36,7 +36,7 @@ public class WebFetchTool : ITool
         }
         """)!;
 
-    public async Task<string> ExecuteAsync(JsonNode input)
+    public async Task<string> ExecuteAsync(JsonNode input, CancellationToken ct = default)
     {
         var url = input["url"]!.GetValue<string>();
         var maxChars = input["maxChars"] is not null
@@ -52,9 +52,9 @@ public class WebFetchTool : ITool
         HttpResponseMessage response;
         try
         {
-            response = await Http.GetAsync(uri);
+            response = await Http.GetAsync(uri, ct);
         }
-        catch (TaskCanceledException)
+        catch (TaskCanceledException) when (!ct.IsCancellationRequested)
         {
             return "Error: Request timed out";
         }
@@ -68,13 +68,13 @@ public class WebFetchTool : ITool
             return $"Error: HTTP {(int)response.StatusCode} fetching {url}";
         }
 
-        var bytes = await response.Content.ReadAsByteArrayAsync();
+        var bytes = await response.Content.ReadAsByteArrayAsync(ct);
         if (bytes.Length > MaxResponseBytes)
         {
             return $"Error: Response too large ({bytes.Length:N0} bytes, max {MaxResponseBytes:N0} bytes)";
         }
 
-        var body = await response.Content.ReadAsStringAsync();
+        var body = System.Text.Encoding.UTF8.GetString(bytes);
         var contentType = response.Content.Headers.ContentType?.MediaType ?? "";
         var finalUrl = response.RequestMessage?.RequestUri?.ToString() ?? url;
 
@@ -98,7 +98,7 @@ public class WebFetchTool : ITool
                 var json = JsonSerializer.Deserialize<JsonElement>(body);
                 content = JsonSerializer.Serialize(json, new JsonSerializerOptions { WriteIndented = true });
             }
-            catch
+            catch (JsonException)
             {
                 content = body;
             }

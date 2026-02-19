@@ -70,9 +70,16 @@ StartupDisplay.Show(
     config.CompactionStrategy, config.CompactionThresholdTokens,
     config.ProtectedTailMessages, logDescriptions);
 
+using var cts = new CancellationTokenSource();
+Console.CancelKeyPress += (_, e) =>
+{
+    e.Cancel = true;
+    cts.Cancel();
+};
+
 try
 {
-    while (true)
+    while (!cts.Token.IsCancellationRequested)
     {
         Console.Write("you> ");
         var input = Console.ReadLine();
@@ -91,8 +98,13 @@ try
         try
         {
             Console.WriteLine();
-            await agent.RunAsync(trimmed);
+            await agent.RunAsync(trimmed, cts.Token);
             Console.WriteLine("\n");
+        }
+        catch (OperationCanceledException)
+        {
+            Console.WriteLine("\n[Cancelled]");
+            break;
         }
         catch (Exception ex)
         {

@@ -5,6 +5,8 @@ namespace MicroXAgentLoop.Tools;
 
 public class BashTool : ITool
 {
+    private const int CommandTimeoutMs = 30_000;
+
     private readonly string? _workingDirectory;
 
     public BashTool(string? workingDirectory = null)
@@ -28,7 +30,7 @@ public class BashTool : ITool
         }
         """)!;
 
-    public async Task<string> ExecuteAsync(JsonNode input)
+    public async Task<string> ExecuteAsync(JsonNode input, CancellationToken ct = default)
     {
         var command = input["command"]!.GetValue<string>();
         var isWindows = OperatingSystem.IsWindows();
@@ -51,17 +53,17 @@ public class BashTool : ITool
 
             process.Start();
 
-            var stdoutTask = process.StandardOutput.ReadToEndAsync();
-            var stderrTask = process.StandardError.ReadToEndAsync();
+            var stdoutTask = process.StandardOutput.ReadToEndAsync(ct);
+            var stderrTask = process.StandardError.ReadToEndAsync(ct);
 
-            var completed = process.WaitForExit(30_000);
+            var completed = process.WaitForExit(CommandTimeoutMs);
             if (!completed)
             {
                 process.Kill(entireProcessTree: true);
-                return $"{await stdoutTask}{await stderrTask}\n[timed out after 30s]";
+                return $"{await stdoutTask}{await stderrTask}\n[timed out after {CommandTimeoutMs / 1000}s]";
             }
 
-            await process.WaitForExitAsync();
+            await process.WaitForExitAsync(ct);
             var stdout = await stdoutTask;
             var stderr = await stderrTask;
 

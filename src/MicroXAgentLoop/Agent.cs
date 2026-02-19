@@ -36,17 +36,19 @@ public class Agent
 
     private const int MaxTokensRetries = 3;
 
-    public async Task RunAsync(string userMessage)
+    public async Task RunAsync(string userMessage, CancellationToken ct = default)
     {
         _messages.Add(new Message(RoleType.User, userMessage));
-        await MaybeCompactAsync();
+        await MaybeCompactAsync(ct);
 
         var maxTokensAttempts = 0;
 
         while (true)
         {
+            ct.ThrowIfCancellationRequested();
+
             var (message, toolUseBlocks, stopReason) = await LlmClient.StreamChatAsync(
-                _client, _model, _maxTokens, _temperature, _systemPrompt, _messages, _anthropicTools);
+                _client, _model, _maxTokens, _temperature, _systemPrompt, _messages, _anthropicTools, ct);
 
             _messages.Add(message);
 
@@ -74,17 +76,17 @@ public class Agent
             if (toolUseBlocks.Count == 0)
                 return;
 
-            var toolResults = await ExecuteToolsAsync(toolUseBlocks);
+            var toolResults = await ExecuteToolsAsync(toolUseBlocks, ct);
             _messages.Add(new Message { Role = RoleType.User, Content = toolResults });
-            await MaybeCompactAsync();
+            await MaybeCompactAsync(ct);
 
             Console.WriteLine();
         }
     }
 
-    private async Task MaybeCompactAsync()
+    private async Task MaybeCompactAsync(CancellationToken ct)
     {
-        var compacted = await _compactionStrategy.MaybeCompactAsync(_messages);
+        var compacted = await _compactionStrategy.MaybeCompactAsync(_messages, ct);
         if (!ReferenceEquals(compacted, _messages))
         {
             _messages.Clear();
@@ -93,7 +95,7 @@ public class Agent
         TrimConversationHistory();
     }
 
-    private async Task<List<ContentBase>> ExecuteToolsAsync(List<ToolUseContent> toolUseBlocks)
+    private async Task<List<ContentBase>> ExecuteToolsAsync(List<ToolUseContent> toolUseBlocks, CancellationToken ct)
     {
         var tasks = toolUseBlocks.Select(async block =>
         {
@@ -109,7 +111,7 @@ public class Agent
 
             try
             {
-                var result = await tool.ExecuteAsync(block.Input);
+                var result = await tool.ExecuteAsync(block.Input, ct);
                 result = TruncateToolResult(result, block.Name);
                 return new ToolResultContent
                 {

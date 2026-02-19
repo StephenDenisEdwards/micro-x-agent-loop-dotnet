@@ -27,12 +27,12 @@ public class LinkedInJobDetailTool : ITool
         }
         """)!;
 
-    public async Task<string> ExecuteAsync(JsonNode input)
+    public async Task<string> ExecuteAsync(JsonNode input, CancellationToken ct = default)
     {
         var url = input["url"]!.GetValue<string>();
         try
         {
-            var response = await Http.GetAsync(url);
+            var response = await Http.GetAsync(url, ct);
             if (!response.IsSuccessStatusCode)
                 return $"Error fetching job page: HTTP {(int)response.StatusCode}";
 

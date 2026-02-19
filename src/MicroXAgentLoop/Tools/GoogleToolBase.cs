@@ -21,7 +21,7 @@ public abstract class GoogleToolBase : ITool
     public abstract string Name { get; }
     public abstract string Description { get; }
     public abstract JsonNode InputSchema { get; }
-    public abstract Task<string> ExecuteAsync(JsonNode input);
+    public abstract Task<string> ExecuteAsync(JsonNode input, CancellationToken ct = default);
 
     protected string HandleError(string message)
     {

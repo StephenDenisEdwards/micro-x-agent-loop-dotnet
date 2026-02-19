@@ -4,6 +4,6 @@ namespace MicroXAgentLoop;
 
 public class NoneCompactionStrategy : ICompactionStrategy
 {
-    public Task<List<Message>> MaybeCompactAsync(List<Message> messages) =>
+    public Task<List<Message>> MaybeCompactAsync(List<Message> messages, CancellationToken ct = default) =>
         Task.FromResult(messages);
 }

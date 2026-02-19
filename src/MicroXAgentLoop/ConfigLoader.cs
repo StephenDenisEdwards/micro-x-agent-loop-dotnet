@@ -9,6 +9,8 @@ namespace MicroXAgentLoop;
 /// </summary>
 public static class ConfigLoader
 {
+    private const string DefaultModel = "claude-sonnet-4-5-20250929";
+
     public record AppConfig(
         string ApiKey,
         string Model,
@@ -36,7 +38,7 @@ public static class ConfigLoader
 
         return new AppConfig(
             ApiKey: apiKey,
-            Model: configuration["Model"] ?? "claude-sonnet-4-5-20250929",
+            Model: configuration["Model"] ?? DefaultModel,
             MaxTokens: int.TryParse(configuration["MaxTokens"], out var mt) ? mt : 8192,
             Temperature: decimal.TryParse(configuration["Temperature"], out var temp) ? temp : 1.0m,
             MaxToolResultChars: int.TryParse(configuration["MaxToolResultChars"], out var trc) ? trc : 40_000,

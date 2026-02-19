@@ -4,21 +4,16 @@ using DocumentFormat.OpenXml.Wordprocessing;
 
 namespace MicroXAgentLoop.Tools;
 
-public class ReadFileTool : ITool
+public class ReadFileTool : FileToolBase
 {
-    private readonly string? _workingDirectory;
+    public ReadFileTool(string? workingDirectory = null) : base(workingDirectory) { }
 
-    public ReadFileTool(string? workingDirectory = null)
-    {
-        _workingDirectory = workingDirectory;
-    }
+    public override string Name => "read_file";
 
-    public string Name => "read_file";
-
-    public string Description =>
+    public override string Description =>
         "Read the contents of a file and return it as text. Supports plain text files and .docx documents.";
 
-    public JsonNode InputSchema => JsonNode.Parse("""
+    public override JsonNode InputSchema => JsonNode.Parse("""
         {
             "type": "object",
             "properties": {
@@ -31,20 +26,19 @@ public class ReadFileTool : ITool
         }
         """)!;
 
-    public async Task<string> ExecuteAsync(JsonNode input)
+    public override async Task<string> ExecuteAsync(JsonNode input, CancellationToken ct = default)
     {
         var filePath = input["path"]!.GetValue<string>();
         try
         {
-            if (!Path.IsPathRooted(filePath) && _workingDirectory is not null)
-                filePath = Path.Combine(_workingDirectory, filePath);
+            filePath = ResolvePath(filePath);
 
             if (Path.GetExtension(filePath).Equals(".docx", StringComparison.OrdinalIgnoreCase))
             {
                 return ExtractDocxText(filePath);
             }
 
-            return await File.ReadAllTextAsync(filePath);
+            return await File.ReadAllTextAsync(filePath, ct);
         }
         catch (Exception ex)
         {

@@ -2,19 +2,14 @@ using System.Text.Json.Nodes;
 
 namespace MicroXAgentLoop.Tools;
 
-public class WriteFileTool : ITool
+public class WriteFileTool : FileToolBase
 {
-    private readonly string? _workingDirectory;
+    public WriteFileTool(string? workingDirectory = null) : base(workingDirectory) { }
 
-    public WriteFileTool(string? workingDirectory = null)
-    {
-        _workingDirectory = workingDirectory;
-    }
+    public override string Name => "write_file";
+    public override string Description => "Write content to a file, creating it if it doesn't exist.";
 
-    public string Name => "write_file";
-    public string Description => "Write content to a file, creating it if it doesn't exist.";
-
-    public JsonNode InputSchema => JsonNode.Parse("""
+    public override JsonNode InputSchema => JsonNode.Parse("""
         {
             "type": "object",
             "properties": {
@@ -31,20 +26,19 @@ public class WriteFileTool : ITool
         }
         """)!;
 
-    public async Task<string> ExecuteAsync(JsonNode input)
+    public override async Task<string> ExecuteAsync(JsonNode input, CancellationToken ct = default)
     {
         var path = input["path"]!.GetValue<string>();
         var content = input["content"]!.GetValue<string>();
         try
         {
-            if (!Path.IsPathRooted(path) && _workingDirectory is not null)
-                path = Path.Combine(_workingDirectory, path);
+            path = ResolvePath(path);
 
             var dir = Path.GetDirectoryName(path);
             if (!string.IsNullOrEmpty(dir))
                 Directory.CreateDirectory(dir);
 
-            await File.WriteAllTextAsync(path, content);
+            await File.WriteAllTextAsync(path, content, ct);
             return $"Successfully wrote to {path}";
         }
         catch (Exception ex)

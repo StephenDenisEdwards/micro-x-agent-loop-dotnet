@@ -7,5 +7,5 @@ public interface ITool
     string Name { get; }
     string Description { get; }
     JsonNode InputSchema { get; }
-    Task<string> ExecuteAsync(JsonNode input);
+    Task<string> ExecuteAsync(JsonNode input, CancellationToken ct = default);
 }

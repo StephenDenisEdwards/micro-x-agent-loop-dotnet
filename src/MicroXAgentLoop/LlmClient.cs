@@ -76,7 +76,7 @@ public static class LlmClient
         return tools.Select(t =>
         {
             var schemaJson = t.InputSchema.ToJsonString(jsonOptions);
-            return (CommonTool)new Function(t.Name, t.Description, JsonNode.Parse(schemaJson));
+            return (CommonTool)new Function(t.Name, t.Description, JsonNode.Parse(schemaJson) ?? new JsonObject());
         }).ToList();
     }
 
@@ -91,7 +91,8 @@ public static class LlmClient
         decimal temperature,
         string systemPrompt,
         List<Message> messages,
-        List<CommonTool> tools)
+        List<CommonTool> tools,
+        CancellationToken ct = default)
     {
         var parameters = new MessageParameters
         {
@@ -111,10 +112,10 @@ public static class LlmClient
 
         try
         {
-            await RetryPipeline.ExecuteAsync(async ct =>
+            await RetryPipeline.ExecuteAsync(async token =>
             {
                 outputs.Clear();
-                await foreach (var res in client.Messages.StreamClaudeMessageAsync(parameters, ct))
+                await foreach (var res in client.Messages.StreamClaudeMessageAsync(parameters, token))
                 {
                     if (res.Delta?.Text is not null)
                     {
@@ -127,7 +128,7 @@ public static class LlmClient
                     }
                     outputs.Add(res);
                 }
-            });
+            }, ct);
 
             if (!firstOutput)
                 spinner.Stop();
