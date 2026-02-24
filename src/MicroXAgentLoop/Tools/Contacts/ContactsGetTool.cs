@@ -14,7 +14,7 @@ public class ContactsGetTool : GoogleToolBase
         "Returns name, emails, phones, addresses, organization, biography, and etag " +
         "(needed for updates).";
 
-    public override JsonNode InputSchema => JsonNode.Parse("""
+    private static readonly JsonNode Schema = JsonNode.Parse("""
         {
             "type": "object",
             "properties": {
@@ -27,6 +27,8 @@ public class ContactsGetTool : GoogleToolBase
         }
         """)!;
 
+    public override JsonNode InputSchema => Schema;
+
     public override async Task<string> ExecuteAsync(JsonNode input, CancellationToken ct = default)
     {
         try
@@ -37,7 +39,7 @@ public class ContactsGetTool : GoogleToolBase
             var request = service.People.Get(resourceName);
             request.PersonFields = "names,emailAddresses,phoneNumbers,addresses,organizations,biographies";
 
-            var person = await request.ExecuteAsync();
+            var person = await request.ExecuteAsync(ct);
 
             return ContactsFormatter.FormatContactDetail(person);
         }

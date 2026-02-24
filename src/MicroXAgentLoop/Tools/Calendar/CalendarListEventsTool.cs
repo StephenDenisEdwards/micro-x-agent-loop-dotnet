@@ -14,7 +14,7 @@ public class CalendarListEventsTool : GoogleToolBase
         "Returns event ID, summary, start/end times, location, status, and organizer. " +
         "Defaults to today's events if no time range is specified.";
 
-    public override JsonNode InputSchema => JsonNode.Parse("""
+    private static readonly JsonNode Schema = JsonNode.Parse("""
         {
             "type": "object",
             "properties": {
@@ -42,6 +42,8 @@ public class CalendarListEventsTool : GoogleToolBase
             "required": []
         }
         """)!;
+
+    public override JsonNode InputSchema => Schema;
 
     public override async Task<string> ExecuteAsync(JsonNode input, CancellationToken ct = default)
     {
@@ -76,7 +78,7 @@ public class CalendarListEventsTool : GoogleToolBase
             if (!string.IsNullOrEmpty(query))
                 request.Q = query;
 
-            var response = await request.ExecuteAsync();
+            var response = await request.ExecuteAsync(ct);
             var events = response.Items;
 
             if (events is null || events.Count == 0)

@@ -13,7 +13,7 @@ public class ContactsSearchTool : GoogleToolBase
         "Search Google Contacts by name, email, phone number, or other fields. " +
         "Returns matching contacts with name, email, and phone number.";
 
-    public override JsonNode InputSchema => JsonNode.Parse("""
+    private static readonly JsonNode Schema = JsonNode.Parse("""
         {
             "type": "object",
             "properties": {
@@ -30,6 +30,8 @@ public class ContactsSearchTool : GoogleToolBase
         }
         """)!;
 
+    public override JsonNode InputSchema => Schema;
+
     public override async Task<string> ExecuteAsync(JsonNode input, CancellationToken ct = default)
     {
         try
@@ -43,7 +45,7 @@ public class ContactsSearchTool : GoogleToolBase
             request.ReadMask = "names,emailAddresses,phoneNumbers";
             request.PageSize = pageSize;
 
-            var response = await request.ExecuteAsync();
+            var response = await request.ExecuteAsync(ct);
             var results = response.Results;
 
             if (results is null || results.Count == 0)

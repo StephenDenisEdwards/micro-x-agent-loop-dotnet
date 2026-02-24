@@ -222,7 +222,10 @@ public class SummarizeCompactionStrategy : ICompactionStrategy
         if (response is null)
             throw new InvalidOperationException("Summarization API returned no response after retries.");
 
-        return response.Content.OfType<TextContent>().First().Text!;
+        var text = response.Content?.OfType<TextContent>().FirstOrDefault()?.Text;
+        if (string.IsNullOrEmpty(text))
+            throw new InvalidOperationException("Summarization returned empty content.");
+        return text;
     }
 
     private static int AdjustBoundary(List<Message> messages, int start, int end)

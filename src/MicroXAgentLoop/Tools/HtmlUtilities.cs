@@ -6,6 +6,10 @@ namespace MicroXAgentLoop.Tools;
 
 public static class HtmlUtilities
 {
+    private static readonly Regex TabsRegex = new(@"\t+", RegexOptions.Compiled);
+    private static readonly Regex ExcessSpacesRegex = new(@" {3,}", RegexOptions.Compiled);
+    private static readonly Regex ExcessNewlinesRegex = new(@"\n{3,}", RegexOptions.Compiled);
+
     /// <summary>
     /// Convert an HTML string to readable plain text.
     /// Handles block elements, lists, table cells, and whitespace normalization.
@@ -61,9 +65,9 @@ public static class HtmlUtilities
             doc.DocumentNode.SelectSingleNode("//body")?.InnerText
             ?? doc.DocumentNode.InnerText);
 
-        text = Regex.Replace(text, @"\t+", "  ");
-        text = Regex.Replace(text, @" {3,}", "  ");
-        text = Regex.Replace(text, @"\n{3,}", "\n\n");
+        text = TabsRegex.Replace(text, "  ");
+        text = ExcessSpacesRegex.Replace(text, "  ");
+        text = ExcessNewlinesRegex.Replace(text, "\n\n");
         return text.Trim();
     }
 }

@@ -14,7 +14,7 @@ public class ContactsCreateTool : GoogleToolBase
         "Create a new Google Contact. At minimum requires a given name. " +
         "Can also set family name, email, phone, organization, and job title.";
 
-    public override JsonNode InputSchema => JsonNode.Parse("""
+    private static readonly JsonNode Schema = JsonNode.Parse("""
         {
             "type": "object",
             "properties": {
@@ -54,6 +54,8 @@ public class ContactsCreateTool : GoogleToolBase
             "required": ["givenName"]
         }
         """)!;
+
+    public override JsonNode InputSchema => Schema;
 
     public override async Task<string> ExecuteAsync(JsonNode input, CancellationToken ct = default)
     {
@@ -104,7 +106,7 @@ public class ContactsCreateTool : GoogleToolBase
                 body.Organizations = new List<Organization> { org };
             }
 
-            var person = await service.People.CreateContact(body).ExecuteAsync();
+            var person = await service.People.CreateContact(body).ExecuteAsync(ct);
 
             return "Contact created successfully.\n\n" + ContactsFormatter.FormatContactDetail(person);
         }

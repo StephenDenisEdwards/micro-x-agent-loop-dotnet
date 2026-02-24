@@ -9,7 +9,7 @@ public class WriteFileTool : FileToolBase
     public override string Name => "write_file";
     public override string Description => "Write content to a file, creating it if it doesn't exist.";
 
-    public override JsonNode InputSchema => JsonNode.Parse("""
+    private static readonly JsonNode Schema = JsonNode.Parse("""
         {
             "type": "object",
             "properties": {
@@ -25,6 +25,8 @@ public class WriteFileTool : FileToolBase
             "required": ["path", "content"]
         }
         """)!;
+
+    public override JsonNode InputSchema => Schema;
 
     public override async Task<string> ExecuteAsync(JsonNode input, CancellationToken ct = default)
     {

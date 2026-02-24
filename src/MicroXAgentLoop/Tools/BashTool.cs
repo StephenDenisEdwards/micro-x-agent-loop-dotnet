@@ -17,7 +17,7 @@ public class BashTool : ITool
     public string Name => "bash";
     public string Description => "Execute a bash command and return its output (stdout + stderr).";
 
-    public JsonNode InputSchema => JsonNode.Parse("""
+    private static readonly JsonNode Schema = JsonNode.Parse("""
         {
             "type": "object",
             "properties": {
@@ -29,6 +29,8 @@ public class BashTool : ITool
             "required": ["command"]
         }
         """)!;
+
+    public JsonNode InputSchema => Schema;
 
     public async Task<string> ExecuteAsync(JsonNode input, CancellationToken ct = default)
     {
@@ -60,7 +62,12 @@ public class BashTool : ITool
             if (!completed)
             {
                 process.Kill(entireProcessTree: true);
-                return $"{await stdoutTask}{await stderrTask}\n[timed out after {CommandTimeoutMs / 1000}s]";
+                var readTimeout = Task.Delay(5000);
+                var killedStdout = await Task.WhenAny(stdoutTask, readTimeout) == stdoutTask
+                    ? await stdoutTask : "[stdout read timed out]";
+                var killedStderr = await Task.WhenAny(stderrTask, readTimeout) == stderrTask
+                    ? await stderrTask : "[stderr read timed out]";
+                return $"{killedStdout}{killedStderr}\n[timed out after {CommandTimeoutMs / 1000}s]";
             }
 
             await process.WaitForExitAsync(ct);

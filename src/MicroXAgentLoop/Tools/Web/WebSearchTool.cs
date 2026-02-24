@@ -20,7 +20,7 @@ public class WebSearchTool : ITool
         "and descriptions. Use this to discover URLs before fetching " +
         "their full content with web_fetch.";
 
-    public JsonNode InputSchema => JsonNode.Parse("""
+    private static readonly JsonNode Schema = JsonNode.Parse("""
         {
             "type": "object",
             "properties": {
@@ -36,6 +36,8 @@ public class WebSearchTool : ITool
             "required": ["query"]
         }
         """)!;
+
+    public JsonNode InputSchema => Schema;
 
     public async Task<string> ExecuteAsync(JsonNode input, CancellationToken ct = default)
     {
@@ -53,7 +55,7 @@ public class WebSearchTool : ITool
         List<SearchResult> results;
         try
         {
-            results = await _provider.SearchAsync(query, count);
+            results = await _provider.SearchAsync(query, count, ct);
         }
         catch (TaskCanceledException)
         {

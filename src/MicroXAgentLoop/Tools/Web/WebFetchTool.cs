@@ -19,7 +19,7 @@ public class WebFetchTool : ITool
         "Supports HTML pages (converted to plain text with links preserved), " +
         "JSON APIs (pretty-printed), and plain text. GET requests only.";
 
-    public JsonNode InputSchema => JsonNode.Parse("""
+    private static readonly JsonNode Schema = JsonNode.Parse("""
         {
             "type": "object",
             "properties": {
@@ -35,6 +35,8 @@ public class WebFetchTool : ITool
             "required": ["url"]
         }
         """)!;
+
+    public JsonNode InputSchema => Schema;
 
     public async Task<string> ExecuteAsync(JsonNode input, CancellationToken ct = default)
     {
@@ -63,83 +65,86 @@ public class WebFetchTool : ITool
             return $"Error: {ex.Message}";
         }
 
-        if (!response.IsSuccessStatusCode)
+        using (response)
         {
-            return $"Error: HTTP {(int)response.StatusCode} fetching {url}";
-        }
-
-        var bytes = await response.Content.ReadAsByteArrayAsync(ct);
-        if (bytes.Length > MaxResponseBytes)
-        {
-            return $"Error: Response too large ({bytes.Length:N0} bytes, max {MaxResponseBytes:N0} bytes)";
-        }
-
-        var body = System.Text.Encoding.UTF8.GetString(bytes);
-        var contentType = response.Content.Headers.ContentType?.MediaType ?? "";
-        var finalUrl = response.RequestMessage?.RequestUri?.ToString() ?? url;
-
-        string content;
-        var title = "";
-
-        if (contentType.Contains("text/html") || contentType.Contains("application/xhtml"))
-        {
-            var doc = new HtmlDocument();
-            doc.LoadHtml(body);
-            var titleNode = doc.DocumentNode.SelectSingleNode("//title");
-            if (titleNode is not null)
-                title = titleNode.InnerText.Trim();
-
-            content = HtmlUtilities.HtmlToText(body);
-        }
-        else if (contentType.Contains("application/json"))
-        {
-            try
+            if (!response.IsSuccessStatusCode)
             {
-                var json = JsonSerializer.Deserialize<JsonElement>(body);
-                content = JsonSerializer.Serialize(json, new JsonSerializerOptions { WriteIndented = true });
+                return $"Error: HTTP {(int)response.StatusCode} fetching {url}";
             }
-            catch (JsonException)
+
+            var bytes = await response.Content.ReadAsByteArrayAsync(ct);
+            if (bytes.Length > MaxResponseBytes)
+            {
+                return $"Error: Response too large ({bytes.Length:N0} bytes, max {MaxResponseBytes:N0} bytes)";
+            }
+
+            var body = System.Text.Encoding.UTF8.GetString(bytes);
+            var contentType = response.Content.Headers.ContentType?.MediaType ?? "";
+            var finalUrl = response.RequestMessage?.RequestUri?.ToString() ?? url;
+
+            string content;
+            var title = "";
+
+            if (contentType.Contains("text/html") || contentType.Contains("application/xhtml"))
+            {
+                var doc = new HtmlDocument();
+                doc.LoadHtml(body);
+                var titleNode = doc.DocumentNode.SelectSingleNode("//title");
+                if (titleNode is not null)
+                    title = titleNode.InnerText.Trim();
+
+                content = HtmlUtilities.HtmlToText(body);
+            }
+            else if (contentType.Contains("application/json"))
+            {
+                try
+                {
+                    var json = JsonSerializer.Deserialize<JsonElement>(body);
+                    content = JsonSerializer.Serialize(json, new JsonSerializerOptions { WriteIndented = true });
+                }
+                catch (JsonException)
+                {
+                    content = body;
+                }
+            }
+            else
             {
                 content = body;
             }
-        }
-        else
-        {
-            content = body;
-        }
 
-        var originalLength = content.Length;
-        var truncated = false;
-        if (originalLength > maxChars)
-        {
-            content = content[..maxChars];
-            truncated = true;
-        }
+            var originalLength = content.Length;
+            var truncated = false;
+            if (originalLength > maxChars)
+            {
+                content = content[..maxChars];
+                truncated = true;
+            }
 
-        var parts = new List<string> { $"URL: {url}" };
-        if (finalUrl != url)
-            parts.Add($"Final URL: {finalUrl}");
-        parts.Add($"Status: {(int)response.StatusCode}");
-        parts.Add($"Content-Type: {contentType}");
-        if (!string.IsNullOrEmpty(title))
-            parts.Add($"Title: {title}");
+            var parts = new List<string> { $"URL: {url}" };
+            if (finalUrl != url)
+                parts.Add($"Final URL: {finalUrl}");
+            parts.Add($"Status: {(int)response.StatusCode}");
+            parts.Add($"Content-Type: {contentType}");
+            if (!string.IsNullOrEmpty(title))
+                parts.Add($"Title: {title}");
 
-        var lengthStr = truncated
-            ? $"{maxChars:N0} chars (truncated from {originalLength:N0})"
-            : $"{originalLength:N0} chars";
-        parts.Add($"Length: {lengthStr}");
+            var lengthStr = truncated
+                ? $"{maxChars:N0} chars (truncated from {originalLength:N0})"
+                : $"{originalLength:N0} chars";
+            parts.Add($"Length: {lengthStr}");
 
-        parts.Add("");
-        parts.Add("--- Content ---");
-        parts.Add("");
-        parts.Add(content);
-
-        if (truncated)
-        {
             parts.Add("");
-            parts.Add($"[Content truncated at {maxChars:N0} characters]");
-        }
+            parts.Add("--- Content ---");
+            parts.Add("");
+            parts.Add(content);
 
-        return string.Join("\n", parts);
+            if (truncated)
+            {
+                parts.Add("");
+                parts.Add($"[Content truncated at {maxChars:N0} characters]");
+            }
+
+            return string.Join("\n", parts);
+        }
     }
 }

@@ -11,7 +11,7 @@ public class ContactsDeleteTool : GoogleToolBase
 
     public override string Description => "Delete a Google Contact by resource name. This action cannot be undone.";
 
-    public override JsonNode InputSchema => JsonNode.Parse("""
+    private static readonly JsonNode Schema = JsonNode.Parse("""
         {
             "type": "object",
             "properties": {
@@ -24,6 +24,8 @@ public class ContactsDeleteTool : GoogleToolBase
         }
         """)!;
 
+    public override JsonNode InputSchema => Schema;
+
     public override async Task<string> ExecuteAsync(JsonNode input, CancellationToken ct = default)
     {
         try
@@ -31,7 +33,7 @@ public class ContactsDeleteTool : GoogleToolBase
             var service = await ContactsAuth.Instance.GetServiceAsync(GoogleClientId, GoogleClientSecret);
             var resourceName = input["resourceName"]!.GetValue<string>();
 
-            await service.People.DeleteContact(resourceName).ExecuteAsync();
+            await service.People.DeleteContact(resourceName).ExecuteAsync(ct);
 
             return $"Contact '{resourceName}' deleted successfully.";
         }

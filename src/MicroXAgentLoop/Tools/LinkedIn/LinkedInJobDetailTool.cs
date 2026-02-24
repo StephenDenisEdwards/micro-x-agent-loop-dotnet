@@ -14,7 +14,7 @@ public class LinkedInJobDetailTool : ITool
     public string Description =>
         "Fetch the full job specification/description from a LinkedIn job URL. Use this after linkedin_jobs to get complete details for a specific posting.";
 
-    public JsonNode InputSchema => JsonNode.Parse("""
+    private static readonly JsonNode Schema = JsonNode.Parse("""
         {
             "type": "object",
             "properties": {
@@ -27,12 +27,14 @@ public class LinkedInJobDetailTool : ITool
         }
         """)!;
 
+    public JsonNode InputSchema => Schema;
+
     public async Task<string> ExecuteAsync(JsonNode input, CancellationToken ct = default)
     {
         var url = input["url"]!.GetValue<string>();
         try
         {
-            var response = await Http.GetAsync(url, ct);
+            using var response = await Http.GetAsync(url, ct);
             if (!response.IsSuccessStatusCode)
                 return $"Error fetching job page: HTTP {(int)response.StatusCode}";
 

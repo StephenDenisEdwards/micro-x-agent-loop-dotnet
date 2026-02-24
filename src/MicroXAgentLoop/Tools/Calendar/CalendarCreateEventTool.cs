@@ -14,7 +14,7 @@ public class CalendarCreateEventTool : GoogleToolBase
         "Create a Google Calendar event. Supports timed events (ISO 8601 with time) " +
         "and all-day events (YYYY-MM-DD date only). Can add attendees by email.";
 
-    public override JsonNode InputSchema => JsonNode.Parse("""
+    private static readonly JsonNode Schema = JsonNode.Parse("""
         {
             "type": "object",
             "properties": {
@@ -50,6 +50,8 @@ public class CalendarCreateEventTool : GoogleToolBase
             "required": ["summary", "start", "end"]
         }
         """)!;
+
+    public override JsonNode InputSchema => Schema;
 
     public override async Task<string> ExecuteAsync(JsonNode input, CancellationToken ct = default)
     {
@@ -88,7 +90,7 @@ public class CalendarCreateEventTool : GoogleToolBase
                 eventBody.Attendees = emails.Select(e => new EventAttendee { Email = e }).ToList();
             }
 
-            var created = await cal.Events.Insert(eventBody, calendarId).ExecuteAsync();
+            var created = await cal.Events.Insert(eventBody, calendarId).ExecuteAsync(ct);
 
             var startDisplay = created.Start?.DateTimeDateTimeOffset?.ToString("o")
                 ?? created.Start?.Date ?? "";

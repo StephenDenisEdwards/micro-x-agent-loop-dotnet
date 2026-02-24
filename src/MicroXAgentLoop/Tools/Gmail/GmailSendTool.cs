@@ -12,7 +12,7 @@ public class GmailSendTool : GoogleToolBase
     public override string Name => "gmail_send";
     public override string Description => "Send an email from your Gmail account.";
 
-    public override JsonNode InputSchema => JsonNode.Parse("""
+    private static readonly JsonNode Schema = JsonNode.Parse("""
         {
             "type": "object",
             "properties": {
@@ -32,6 +32,8 @@ public class GmailSendTool : GoogleToolBase
             "required": ["to", "subject", "body"]
         }
         """)!;
+
+    public override JsonNode InputSchema => Schema;
 
     public override async Task<string> ExecuteAsync(JsonNode input, CancellationToken ct = default)
     {
@@ -55,7 +57,7 @@ public class GmailSendTool : GoogleToolBase
                 .TrimEnd('=');
 
             var result = await gmail.Users.Messages.Send(
-                new Message { Raw = raw }, "me").ExecuteAsync();
+                new Message { Raw = raw }, "me").ExecuteAsync(ct);
 
             return $"Email sent successfully (ID: {result.Id})";
         }

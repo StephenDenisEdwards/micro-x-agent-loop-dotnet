@@ -65,7 +65,7 @@ public static class ConfigLoader
             {
                 Transport = serverSection["transport"],
                 Command = serverSection["command"],
-                Args = serverSection.GetSection("args").GetChildren().Select(c => c.Value!).ToArray(),
+                Args = serverSection.GetSection("args").GetChildren().Select(c => c.Value ?? "").ToArray(),
                 Url = serverSection["url"],
             };
 
@@ -74,7 +74,7 @@ public static class ConfigLoader
             {
                 serverConfig.Env = new Dictionary<string, string>();
                 foreach (var envItem in envSection.GetChildren())
-                    serverConfig.Env[envItem.Key] = envItem.Value!;
+                    serverConfig.Env[envItem.Key] = envItem.Value ?? "";
             }
 
             configs[serverSection.Key] = serverConfig;

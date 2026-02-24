@@ -14,7 +14,7 @@ public class LinkedInJobsTool : ITool
     public string Description =>
         "Search for job postings on LinkedIn. Returns job title, company, location, date, salary, and URL.";
 
-    public JsonNode InputSchema => JsonNode.Parse("""
+    private static readonly JsonNode Schema = JsonNode.Parse("""
         {
             "type": "object",
             "properties": {
@@ -55,6 +55,8 @@ public class LinkedInJobsTool : ITool
         }
         """)!;
 
+    public JsonNode InputSchema => Schema;
+
     public async Task<string> ExecuteAsync(JsonNode input, CancellationToken ct = default)
     {
         try
@@ -77,7 +79,7 @@ public class LinkedInJobsTool : ITool
                       (string.IsNullOrEmpty(dateFilter) ? "" : $"&f_TPR={dateFilter}") +
                       $"&start=0&count={limit}{sortParam}";
 
-            var response = await Http.GetAsync(url, ct);
+            using var response = await Http.GetAsync(url, ct);
             if (!response.IsSuccessStatusCode)
                 return $"Error fetching LinkedIn jobs: HTTP {(int)response.StatusCode}";
 

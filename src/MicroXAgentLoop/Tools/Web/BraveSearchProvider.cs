@@ -18,14 +18,14 @@ public class BraveSearchProvider : ISearchProvider
 
     public string ProviderName => "Brave";
 
-    public async Task<List<SearchResult>> SearchAsync(string query, int count)
+    public async Task<List<SearchResult>> SearchAsync(string query, int count, CancellationToken ct = default)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get,
             $"{BraveSearchUrl}?q={Uri.EscapeDataString(query)}&count={count}");
         request.Headers.Add("X-Subscription-Token", _apiKey);
         request.Headers.Add("Accept", "application/json");
 
-        var response = await Http.SendAsync(request);
+        using var response = await Http.SendAsync(request, ct);
         if (!response.IsSuccessStatusCode)
         {
             throw new HttpRequestException(

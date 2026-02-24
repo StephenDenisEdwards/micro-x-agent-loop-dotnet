@@ -12,7 +12,7 @@ public class GmailSearchTool : GoogleToolBase
     public override string Description =>
         "Search Gmail using Gmail search syntax (e.g. 'is:unread', 'from:someone@example.com', 'subject:hello'). Returns a list of matching emails with ID, date, from, subject, and snippet.";
 
-    public override JsonNode InputSchema => JsonNode.Parse("""
+    private static readonly JsonNode Schema = JsonNode.Parse("""
         {
             "type": "object",
             "properties": {
@@ -29,6 +29,8 @@ public class GmailSearchTool : GoogleToolBase
         }
         """)!;
 
+    public override JsonNode InputSchema => Schema;
+
     public override async Task<string> ExecuteAsync(JsonNode input, CancellationToken ct = default)
     {
         try
@@ -41,20 +43,19 @@ public class GmailSearchTool : GoogleToolBase
             listRequest.Q = query;
             listRequest.MaxResults = maxResults;
 
-            var listResponse = await listRequest.ExecuteAsync();
+            var listResponse = await listRequest.ExecuteAsync(ct);
             var messages = listResponse.Messages;
 
             if (messages is null || messages.Count == 0)
                 return "No emails found matching your query.";
 
-            var results = new List<string>();
-            foreach (var msg in messages)
+            var tasks = messages.Select(async msg =>
             {
                 var detailRequest = gmail.Users.Messages.Get("me", msg.Id);
                 detailRequest.Format = Google.Apis.Gmail.v1.UsersResource.MessagesResource.GetRequest.FormatEnum.Metadata;
                 detailRequest.MetadataHeaders = new[] { "From", "Subject", "Date" };
 
-                var detail = await detailRequest.ExecuteAsync();
+                var detail = await detailRequest.ExecuteAsync(ct);
 
                 var headers = detail.Payload?.Headers;
                 var from = GmailParser.GetHeader(headers, "From");
@@ -62,13 +63,15 @@ public class GmailSearchTool : GoogleToolBase
                 var date = GmailParser.GetHeader(headers, "Date");
                 var snippet = detail.Snippet ?? "";
 
-                results.Add(
+                return
                     $"ID: {msg.Id}\n" +
                     $"  Date: {date}\n" +
                     $"  From: {from}\n" +
                     $"  Subject: {subject}\n" +
-                    $"  Snippet: {snippet}");
-            }
+                    $"  Snippet: {snippet}";
+            });
+
+            var results = await Task.WhenAll(tasks);
 
             return string.Join("\n\n", results);
         }

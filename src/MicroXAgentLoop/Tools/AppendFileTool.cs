@@ -14,7 +14,7 @@ public class AppendFileTool : FileToolBase
         "Use this to write large files in stages — " +
         "create the file with write_file first, then append additional sections.";
 
-    public override JsonNode InputSchema => JsonNode.Parse("""
+    private static readonly JsonNode Schema = JsonNode.Parse("""
         {
             "type": "object",
             "properties": {
@@ -30,6 +30,8 @@ public class AppendFileTool : FileToolBase
             "required": ["path", "content"]
         }
         """)!;
+
+    public override JsonNode InputSchema => Schema;
 
     public override async Task<string> ExecuteAsync(JsonNode input, CancellationToken ct = default)
     {

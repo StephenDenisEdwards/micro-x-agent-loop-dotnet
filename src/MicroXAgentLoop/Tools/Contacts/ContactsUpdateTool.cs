@@ -14,7 +14,7 @@ public class ContactsUpdateTool : GoogleToolBase
         "Update an existing Google Contact. Requires the resource name and etag " +
         "(from contacts_get). Provide only the fields you want to change.";
 
-    public override JsonNode InputSchema => JsonNode.Parse("""
+    private static readonly JsonNode Schema = JsonNode.Parse("""
         {
             "type": "object",
             "properties": {
@@ -62,6 +62,8 @@ public class ContactsUpdateTool : GoogleToolBase
             "required": ["resourceName", "etag"]
         }
         """)!;
+
+    public override JsonNode InputSchema => Schema;
 
     public override async Task<string> ExecuteAsync(JsonNode input, CancellationToken ct = default)
     {
@@ -131,7 +133,7 @@ public class ContactsUpdateTool : GoogleToolBase
             var request = service.People.UpdateContact(body, resourceName);
             request.UpdatePersonFields = string.Join(",", updateFields);
 
-            var person = await request.ExecuteAsync();
+            var person = await request.ExecuteAsync(ct);
 
             return "Contact updated successfully.\n\n" + ContactsFormatter.FormatContactDetail(person);
         }

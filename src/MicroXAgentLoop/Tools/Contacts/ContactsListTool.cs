@@ -14,7 +14,7 @@ public class ContactsListTool : GoogleToolBase
         "List Google Contacts. Returns contacts with name, email, and phone number. " +
         "Supports pagination via pageToken.";
 
-    public override JsonNode InputSchema => JsonNode.Parse("""
+    private static readonly JsonNode Schema = JsonNode.Parse("""
         {
             "type": "object",
             "properties": {
@@ -35,6 +35,8 @@ public class ContactsListTool : GoogleToolBase
         }
         """)!;
 
+    public override JsonNode InputSchema => Schema;
+
     public override async Task<string> ExecuteAsync(JsonNode input, CancellationToken ct = default)
     {
         try
@@ -53,7 +55,7 @@ public class ContactsListTool : GoogleToolBase
             if (!string.IsNullOrEmpty(sortOrder) && Enum.TryParse<PeopleResource.ConnectionsResource.ListRequest.SortOrderEnum>(sortOrder, ignoreCase: true, out var sortOrderEnum))
                 request.SortOrder = sortOrderEnum;
 
-            var response = await request.ExecuteAsync();
+            var response = await request.ExecuteAsync(ct);
             var connections = response.Connections;
 
             if (connections is null || connections.Count == 0)

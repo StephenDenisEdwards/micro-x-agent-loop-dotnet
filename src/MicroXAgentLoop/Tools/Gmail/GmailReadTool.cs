@@ -12,7 +12,7 @@ public class GmailReadTool : GoogleToolBase
     public override string Description =>
         "Read the full content of a Gmail email by its message ID (from gmail_search results).";
 
-    public override JsonNode InputSchema => JsonNode.Parse("""
+    private static readonly JsonNode Schema = JsonNode.Parse("""
         {
             "type": "object",
             "properties": {
@@ -25,6 +25,8 @@ public class GmailReadTool : GoogleToolBase
         }
         """)!;
 
+    public override JsonNode InputSchema => Schema;
+
     public override async Task<string> ExecuteAsync(JsonNode input, CancellationToken ct = default)
     {
         try
@@ -35,7 +37,7 @@ public class GmailReadTool : GoogleToolBase
             var request = gmail.Users.Messages.Get("me", messageId);
             request.Format = Google.Apis.Gmail.v1.UsersResource.MessagesResource.GetRequest.FormatEnum.Full;
 
-            var message = await request.ExecuteAsync();
+            var message = await request.ExecuteAsync(ct);
             var headers = message.Payload?.Headers;
             var from = GmailParser.GetHeader(headers, "From");
             var to = GmailParser.GetHeader(headers, "To");

@@ -30,7 +30,7 @@ public static class RetryPipelineFactory
             .Handle<HttpRequestException>(ex =>
                 ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
             .Handle<HttpRequestException>(ex => ex.StatusCode is null)
-            .Handle<TaskCanceledException>();
+            .Handle<TaskCanceledException>(ex => ex.InnerException is TimeoutException);
 
         foreach (var exType in additionalExceptions)
             predicateBuilder.Handle<Exception>(ex => exType.IsInstanceOfType(ex));

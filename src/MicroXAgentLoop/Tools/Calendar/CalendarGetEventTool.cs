@@ -11,7 +11,7 @@ public class CalendarGetEventTool : GoogleToolBase
 
     public override string Description => "Get full details of a Google Calendar event by its event ID.";
 
-    public override JsonNode InputSchema => JsonNode.Parse("""
+    private static readonly JsonNode Schema = JsonNode.Parse("""
         {
             "type": "object",
             "properties": {
@@ -28,6 +28,8 @@ public class CalendarGetEventTool : GoogleToolBase
         }
         """)!;
 
+    public override JsonNode InputSchema => Schema;
+
     public override async Task<string> ExecuteAsync(JsonNode input, CancellationToken ct = default)
     {
         try
@@ -36,7 +38,7 @@ public class CalendarGetEventTool : GoogleToolBase
             var eventId = input["eventId"]!.GetValue<string>();
             var calendarId = input["calendarId"]?.GetValue<string>() ?? "primary";
 
-            var ev = await cal.Events.Get(calendarId, eventId).ExecuteAsync();
+            var ev = await cal.Events.Get(calendarId, eventId).ExecuteAsync(ct);
 
             var start = ev.Start?.DateTimeDateTimeOffset?.ToString("o")
                 ?? ev.Start?.Date ?? "";

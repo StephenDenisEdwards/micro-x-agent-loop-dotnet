@@ -37,7 +37,7 @@ public class AnthropicUsageTool : ITool
         "Supports three actions: 'usage' (token-level usage), 'cost' (spend in USD, converted from cents), " +
         "'claude_code' (Claude Code productivity metrics).";
 
-    public JsonNode InputSchema => JsonNode.Parse("""
+    private static readonly JsonNode Schema = JsonNode.Parse("""
         {
             "type": "object",
             "properties": {
@@ -72,6 +72,8 @@ public class AnthropicUsageTool : ITool
         }
         """)!;
 
+    public JsonNode InputSchema => Schema;
+
     public async Task<string> ExecuteAsync(JsonNode input, CancellationToken ct = default)
     {
         try
@@ -102,11 +104,11 @@ public class AnthropicUsageTool : ITool
 
             var fullUrl = $"{url}?{string.Join("&", queryParams)}";
 
-            var request = new HttpRequestMessage(HttpMethod.Get, fullUrl);
+            using var request = new HttpRequestMessage(HttpMethod.Get, fullUrl);
             request.Headers.Add("x-api-key", _adminKey);
             request.Headers.Add("anthropic-version", "2023-06-01");
 
-            var response = await Http.SendAsync(request, ct);
+            using var response = await Http.SendAsync(request, ct);
 
             if (!response.IsSuccessStatusCode)
             {

@@ -13,7 +13,7 @@ public class ReadFileTool : FileToolBase
     public override string Description =>
         "Read the contents of a file and return it as text. Supports plain text files and .docx documents.";
 
-    public override JsonNode InputSchema => JsonNode.Parse("""
+    private static readonly JsonNode Schema = JsonNode.Parse("""
         {
             "type": "object",
             "properties": {
@@ -25,6 +25,8 @@ public class ReadFileTool : FileToolBase
             "required": ["path"]
         }
         """)!;
+
+    public override JsonNode InputSchema => Schema;
 
     public override async Task<string> ExecuteAsync(JsonNode input, CancellationToken ct = default)
     {
